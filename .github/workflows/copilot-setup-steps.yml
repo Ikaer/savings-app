@@ -1,0 +1,46 @@
+name: Setup Development Environment for GitHub Copilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  copilot-setup-steps:
+    name: Setup Savings Tracker Development Environment
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Initialize data directories
+      run: |
+        mkdir -p data config logs
+        
+    - name: Build project
+      run: npm run build
+      
+    - name: Verify project structure
+      run: |
+        echo "Verifying Savings Tracker structure..."
+        
+        test -d "src/components/savings" && echo "Savings components OK"
+        test -d "src/components/shared" && echo "Shared components OK"
+        test -d "src/models/savings" && echo "Savings models OK"
+        test -d "src/hooks/savings" && echo "Savings hooks OK"
+        test -d "src/pages/api/savings" && echo "Savings APIs OK"
+        test -f "src/pages/savings.tsx" && echo "Savings page OK"
+        test -f "src/lib/savings.ts" && echo "Savings lib OK"
+        test -f "src/lib/finance.ts" && echo "Finance lib OK"
+        
+        echo "Savings Tracker development environment ready!"
