@@ -65,10 +65,10 @@ export default function BalanceAccountDetails({ account, onBack }: BalanceAccoun
             />
 
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className={sharedStyles.detailHeader}>
+                <div className={sharedStyles.detailHeaderStart}>
                     <Button variant="secondary" onClick={onBack}>← Back</Button>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#f3f4f6', margin: 0 }}>{account.name}</h1>
+                    <h1 className={sharedStyles.detailTitle}>{account.name}</h1>
                 </div>
                 <Button onClick={() => setShowAddModal(true)}>
                     + Record Balance
@@ -107,8 +107,8 @@ export default function BalanceAccountDetails({ account, onBack }: BalanceAccoun
             </div>
 
             {/* Balance History Table */}
-            <div style={{ marginTop: '2rem' }}>
-                <h3 style={{ fontSize: '1rem', color: '#9ca3af', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div className={sharedStyles.section}>
+                <h3 className={sharedStyles.sectionTitle}>
                     Balance History
                 </h3>
                 {loading ? (

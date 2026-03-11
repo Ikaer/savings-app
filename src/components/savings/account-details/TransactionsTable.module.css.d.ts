@@ -11,9 +11,7 @@ declare const styles: {
   readonly "mobileSort": string;
   readonly "mobileSortButton": string;
   readonly "mobileSortButtonActive": string;
-  readonly "sparklineCell": string;
-  readonly "sparklineChart": string;
-  readonly "sparklineEmpty": string;
+  readonly "mobileType": string;
 };
 export = styles;
 

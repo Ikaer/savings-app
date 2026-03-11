@@ -38,7 +38,7 @@ export default function AllChartsModal({
             <div className={sharedStyles.chartPanel}>
               <div className={sharedStyles.chartPanelTitle}>Total Invested</div>
               <div className={sharedStyles.chartPanelBody}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140}>
                   <LineChart data={metrics} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(75, 85, 99, 0.25)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} />
@@ -71,7 +71,7 @@ export default function AllChartsModal({
             <div className={sharedStyles.chartPanel}>
               <div className={sharedStyles.chartPanelTitle}>Current Value</div>
               <div className={sharedStyles.chartPanelBody}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140}>
                   <LineChart data={metrics} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(75, 85, 99, 0.25)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} />
@@ -104,7 +104,7 @@ export default function AllChartsModal({
             <div className={sharedStyles.chartPanel}>
               <div className={sharedStyles.chartPanelTitle}>Total Gain/Loss</div>
               <div className={sharedStyles.chartPanelBody}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140}>
                   <LineChart data={metrics} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(75, 85, 99, 0.25)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} />
@@ -137,7 +137,7 @@ export default function AllChartsModal({
             <div className={sharedStyles.chartPanel}>
               <div className={sharedStyles.chartPanelTitle}>XIRR</div>
               <div className={sharedStyles.chartPanelBody}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140}>
                   <LineChart data={metrics} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(75, 85, 99, 0.25)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} />
@@ -170,7 +170,7 @@ export default function AllChartsModal({
             <div className={sharedStyles.chartPanel}>
               <div className={sharedStyles.chartPanelTitle}>Current Year XIRR</div>
               <div className={sharedStyles.chartPanelBody}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140}>
                   <LineChart data={metrics} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(75, 85, 99, 0.25)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} />

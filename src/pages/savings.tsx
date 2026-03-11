@@ -157,7 +157,7 @@ export default function SavingsPage() {
                                 <div className={sharedStyles.chartEmpty}>No historical data available.</div>
                             ) : (
                                 <div className={sharedStyles.chartContainer} style={{ height: '180px' }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={260} minHeight={140}>
                                         <LineChart data={wealthChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                                             <CartesianGrid stroke="rgba(75, 85, 99, 0.25)" vertical={false} />
                                             <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 12 }} />

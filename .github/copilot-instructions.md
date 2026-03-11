@@ -91,14 +91,14 @@ import { SavingsAccount, AccountType } from '@/models/savings';
 - Use CSS Modules for component-specific styling
 - File naming: `ComponentName.module.css`
 - Class naming: camelCase
-- CSS Modules typings are generated via `typed-css-modules`.
+- CSS Modules typings are generated via `typed-css-modules`. DO NOT manually edit the generated `css.d.ts` files.
 - Use `npm run dev` (runs Next dev + CSS typings watcher).
 - `npm run build` runs `css:types` automatically via `prebuild`.
 - If a class name is missing in TS, run `npm run css:types` and fix the selector/name mismatch.
 
 ### Responsive Design
 - Optimized for TV/4K displays, but the OS is a windows with a 300% zoom factor.
-- No mobile responsiveness required
+- TV/desktop-first design, with basic mobile layout support now implemented.
 
 ## Development Patterns
 

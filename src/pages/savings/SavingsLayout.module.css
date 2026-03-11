@@ -3,3 +3,15 @@
     max-width: 2560px;
     margin: 0 auto;
 }
+
+@media (max-width: 768px) {
+    .savingsContainer {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .savingsContainer {
+        padding: 0.75rem;
+    }
+}

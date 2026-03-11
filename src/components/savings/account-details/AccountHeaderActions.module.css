@@ -22,3 +22,33 @@
 .itemsSeparator{
     width: 2rem;
 }
+
+@media (max-width: 768px) {
+    .header {
+        margin-bottom: 1.5rem;
+        gap: 1rem;
+    }
+
+    .title {
+        font-size: 1.5rem;
+    }
+
+    .headerLayout {
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    .headerLayout > * {
+        flex: 1 1 calc(50% - 0.25rem);
+    }
+
+    .itemsSeparator {
+        display: none;
+    }
+}
+
+@media (max-width: 520px) {
+    .headerLayout > * {
+        flex-basis: 100%;
+    }
+}

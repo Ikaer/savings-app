@@ -7,6 +7,9 @@ declare const styles: {
   readonly "chartPanelBody": string;
   readonly "chartPanelTitle": string;
   readonly "chartsGrid": string;
+  readonly "detailHeader": string;
+  readonly "detailHeaderStart": string;
+  readonly "detailTitle": string;
   readonly "emptyState": string;
   readonly "formActions": string;
   readonly "formGrid": string;
@@ -17,6 +20,8 @@ declare const styles: {
   readonly "negative": string;
   readonly "positive": string;
   readonly "prefillRow": string;
+  readonly "section": string;
+  readonly "sectionTitle": string;
   readonly "select": string;
   readonly "sortableHeader": string;
   readonly "statItem": string;
