@@ -18,8 +18,16 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 
 // ── Type-specific configs ──────────────────────────────────────────────────────
 
+export interface PEAAllocationGroup {
+    name: string;
+    tickers: string[];
+    isins?: string[];
+}
+
 export interface PEAConfig {
     type: 'PEA';
+    allocationGroups?: PEAAllocationGroup[];
+    allocationUngroupedLabel?: string;
 }
 
 export interface CompteCourantConfig {

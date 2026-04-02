@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import sharedStyles from '@/components/savings/SavingsShared.module.css';
-import { SavingsAccount } from '@/models/savings';
+import { PEAAllocationGroup, PEAConfig, SavingsAccount } from '@/models/savings';
 import TransactionForm from './account-details/TransactionForm';
 import AccountHeaderActions from './account-details/AccountHeaderActions';
 import PerformanceCard from './account-details/PerformanceCard';
 import PortfolioValueCard from './account-details/PortfolioValueCard';
 import GainLossCard from './account-details/GainLossCard';
 import AnnualOverviewCard from './account-details/AnnualOverviewCard';
+import GroupedAllocationCard from './account-details/GroupedAllocationCard';
 import PositionsTable from './account-details/PositionsTable';
 import TransactionsTable from './account-details/TransactionsTable';
 import AllChartsModal from './account-details/AllChartsModal';
@@ -32,9 +33,10 @@ import { useAccountHistory } from '@/hooks/savings/useAccountHistory';
 import { useAssetHistory } from '@/hooks/savings/useAssetHistory';
 import { useAnnualValueEditor } from '@/hooks/savings/useAnnualValueEditor';
 import { useTransactionEditor } from '@/hooks/savings/useTransactionEditor';
-import { Tabs } from '@/components/shared';
+import { Button, Modal, Tabs } from '@/components/shared';
 import {
   getActiveAssetInfo,
+  mapGroupedAllocationData,
   mapAssetChartData,
   mapAssetSparklineData,
   mapHistoryChartData,
@@ -46,7 +48,93 @@ interface SavingsAccountDetailsProps {
   onBack: () => void;
 }
 
+interface GroupingConfigurationGroupDraft {
+  name: string;
+  stocks?: string[];
+  tickers?: string[];
+  isins?: string[];
+}
+
+interface GroupingConfigurationDraft {
+  groups: GroupingConfigurationGroupDraft[];
+  ungroupedLabel?: string;
+}
+
+function toGroupingDraft(config?: PEAConfig): GroupingConfigurationDraft {
+  const groups = (config?.allocationGroups ?? []).map(group => ({
+    name: group.name,
+    stocks: group.tickers,
+    isins: group.isins
+  }));
+
+  return {
+    groups,
+    ungroupedLabel: config?.allocationUngroupedLabel || 'Other assets'
+  };
+}
+
+function parseGroupingDraft(rawText: string): GroupingConfigurationDraft {
+  if (!rawText.trim()) {
+    return { groups: [], ungroupedLabel: 'Other assets' };
+  }
+
+  const parsed = JSON.parse(rawText) as Partial<GroupingConfigurationDraft> | GroupingConfigurationGroupDraft[];
+  const groups = Array.isArray(parsed)
+    ? parsed
+    : parsed.groups;
+
+  if (!Array.isArray(groups)) {
+    throw new Error('Expected a JSON object with a "groups" array.');
+  }
+
+  const normalizedGroups = groups.map((group, index) => {
+    const stocks = Array.isArray(group.stocks)
+      ? group.stocks
+      : Array.isArray(group.tickers)
+      ? group.tickers
+      : [];
+    if (!group.name || !stocks.length) {
+      throw new Error(`Group #${index + 1} must contain a name and at least one stock.`);
+    }
+
+    return {
+      name: group.name,
+      stocks,
+      isins: Array.isArray(group.isins) ? group.isins : undefined
+    };
+  });
+
+  return {
+    groups: normalizedGroups,
+    ungroupedLabel: Array.isArray(parsed) ? 'Other assets' : (parsed.ungroupedLabel || 'Other assets')
+  };
+}
+
+function toPeaAllocationGroups(draft: GroupingConfigurationDraft): PEAAllocationGroup[] {
+  return draft.groups.map(group => {
+    const stocks = group.stocks ?? group.tickers ?? [];
+    return {
+      name: group.name.trim(),
+      tickers: stocks.map(stock => stock.trim()).filter(Boolean),
+      isins: (group.isins ?? []).map(isin => isin.trim()).filter(Boolean)
+    };
+  });
+}
+
 export default function SavingsAccountDetails({ account, onBack }: SavingsAccountDetailsProps) {
+  const initialPeaConfig = useMemo<PEAConfig | undefined>(() => {
+    if (account.type !== 'PEA') return undefined;
+    return account.config?.type === 'PEA' ? account.config : { type: 'PEA' };
+  }, [account]);
+
+  const [peaConfig, setPeaConfig] = useState<PEAConfig | undefined>(initialPeaConfig);
+  const [showGroupingConfigModal, setShowGroupingConfigModal] = useState(false);
+  const [groupingConfigText, setGroupingConfigText] = useState(() => {
+    return JSON.stringify(toGroupingDraft(initialPeaConfig), null, 2);
+  });
+  const [groupingConfigError, setGroupingConfigError] = useState<string | null>(null);
+  const [savingGroupingConfig, setSavingGroupingConfig] = useState(false);
+
   const {
     data,
     transactions,
@@ -88,6 +176,34 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
     saveTransaction
   } = useTransactionEditor({ accountId: account.id, onRefresh: refreshData });
 
+  const copyTextToClipboard = async (text: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    if (typeof document === 'undefined') {
+      throw new Error('Clipboard API and document fallback are unavailable.');
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    textArea.style.pointerEvents = 'none';
+    document.body.appendChild(textArea);
+    textArea.select();
+    textArea.setSelectionRange(0, textArea.value.length);
+
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textArea);
+
+    if (!copied) {
+      throw new Error('Fallback clipboard copy failed.');
+    }
+  };
+
   const handleCopyContext = async () => {
     if (!data) return;
     const text = buildClipboardText({
@@ -101,7 +217,7 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
     if (!text) return;
 
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
     }
@@ -139,6 +255,13 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
   const assetChartData: Record<string, AssetChartPoint[]> = useMemo(() => {
     return mapAssetChartData(assetHistory);
   }, [assetHistory]);
+
+  const groupedAllocationData = useMemo(() => {
+    if (!data?.positions || account.type !== 'PEA') return [];
+    return mapGroupedAllocationData(data.positions, peaConfig);
+  }, [data?.positions, account.type, peaConfig]);
+
+  const hasConfiguredGroups = (peaConfig?.allocationGroups?.length ?? 0) > 0;
 
   const activeAssetInfo: AssetMetaInfo | null = useMemo(() => {
     return getActiveAssetInfo(activeAssetIsin, data?.positions);
@@ -180,8 +303,76 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
 
   const { summary } = data;
 
+  const saveGroupingConfiguration = async () => {
+    if (account.type !== 'PEA') return;
+
+    setGroupingConfigError(null);
+    let parsedDraft: GroupingConfigurationDraft;
+
+    try {
+      parsedDraft = parseGroupingDraft(groupingConfigText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid JSON configuration.';
+      setGroupingConfigError(message);
+      return;
+    }
+
+    const nextConfig: PEAConfig = {
+      type: 'PEA',
+      allocationGroups: toPeaAllocationGroups(parsedDraft),
+      allocationUngroupedLabel: parsedDraft.ungroupedLabel?.trim() || 'Other assets'
+    };
+
+    setSavingGroupingConfig(true);
+    try {
+      const response = await fetch('/api/savings/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...account,
+          config: nextConfig
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Failed to save grouping configuration.');
+      }
+
+      setPeaConfig(nextConfig);
+      setShowGroupingConfigModal(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save grouping configuration.';
+      setGroupingConfigError(message);
+    } finally {
+      setSavingGroupingConfig(false);
+    }
+  };
+
   return (
     <div>
+      <Modal open={showGroupingConfigModal} onClose={() => setShowGroupingConfigModal(false)} title="Configure Allocation Groups" size="lg">
+        <p style={{ color: '#9ca3af', marginTop: 0 }}>
+          Use JSON to map positions to groups. Any asset that does not match a group is included in the ungrouped bucket.
+        </p>
+        <textarea
+          className={sharedStyles.input}
+          style={{ width: '100%', minHeight: '280px', resize: 'vertical', fontFamily: 'monospace' }}
+          value={groupingConfigText}
+          onChange={(event) => setGroupingConfigText(event.target.value)}
+          spellCheck={false}
+        />
+        {groupingConfigError && (
+          <div style={{ color: '#ef4444', marginTop: '0.75rem', fontSize: '0.875rem' }}>{groupingConfigError}</div>
+        )}
+        <div className={sharedStyles.formActions} style={{ marginTop: '1rem' }}>
+          <Button variant="secondary" onClick={() => setShowGroupingConfigModal(false)}>Cancel</Button>
+          <Button onClick={saveGroupingConfiguration} disabled={savingGroupingConfig}>
+            {savingGroupingConfig ? 'Saving...' : 'Save Groups'}
+          </Button>
+        </div>
+      </Modal>
+
       <TransactionForm
         open={isTransactionEditorOpen}
         mode={transactionEditorMode}
@@ -238,6 +429,18 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
           data={historyChartData}
           formatCurrency={formatCurrency}
         />
+        {account.type === 'PEA' && (
+          <GroupedAllocationCard
+            data={groupedAllocationData}
+            hasConfiguredGroups={hasConfiguredGroups}
+            formatCurrency={formatCurrency}
+            onConfigureGroups={() => {
+              setGroupingConfigText(JSON.stringify(toGroupingDraft(peaConfig), null, 2));
+              setGroupingConfigError(null);
+              setShowGroupingConfigModal(true);
+            }}
+          />
+        )}
         <GainLossCard
           loading={historyLoading}
           data={historyChartData}

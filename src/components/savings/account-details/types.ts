@@ -66,6 +66,14 @@ export interface AssetMetaInfo {
   ticker: string;
 }
 
+export interface GroupAllocationSlice {
+  name: string;
+  currentValue: number;
+  percentage: number;
+  matchedAssets: string[];
+  isRemainder?: boolean;
+}
+
 export interface PositionsTableProps {
   positions: AssetPosition[];
   positionsSort: { key: PositionSortKey; direction: SortDirection };

@@ -1,8 +1,9 @@
-import { AssetPosition } from '@/models/savings';
+import { AssetPosition, PEAConfig } from '@/models/savings';
 import {
   AssetChartPoint,
   AssetMetaInfo,
   AssetSparklinePoint,
+  GroupAllocationSlice,
   HistoryChartPoint,
   HistoryMetricPoint,
   HistoricalAssetRecord,
@@ -70,5 +71,69 @@ export function getActiveAssetInfo(
   if (!activeAssetIsin || !positions) return null;
   const match = positions.find(pos => pos.isin === activeAssetIsin);
   return match ? { name: match.name, isin: match.isin, ticker: match.ticker } : null;
+}
+
+export function mapGroupedAllocationData(
+  positions: AssetPosition[],
+  config?: PEAConfig
+): GroupAllocationSlice[] {
+  if (!positions.length) return [];
+
+  const totalCurrentValue = positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+  if (totalCurrentValue <= 0) return [];
+
+  const groups = config?.allocationGroups ?? [];
+  if (!groups.length) return [];
+
+  const normalizedGroups = groups.map(group => ({
+    name: group.name,
+    tickers: (group.tickers ?? []).map(value => value.trim().toUpperCase()),
+    isins: (group.isins ?? []).map(value => value.trim().toUpperCase())
+  }));
+
+  const groupedSlices = normalizedGroups.map(group => ({
+    name: group.name,
+    currentValue: 0,
+    matchedAssets: [] as string[]
+  }));
+
+  let remainderValue = 0;
+
+  positions.forEach(position => {
+    if (position.currentValue <= 0) return;
+
+    const ticker = position.ticker.trim().toUpperCase();
+    const isin = position.isin.trim().toUpperCase();
+    const targetIndex = normalizedGroups.findIndex(group => {
+      return group.tickers.includes(ticker) || group.isins.includes(isin);
+    });
+
+    if (targetIndex >= 0) {
+      groupedSlices[targetIndex].currentValue += position.currentValue;
+      groupedSlices[targetIndex].matchedAssets.push(position.ticker);
+      return;
+    }
+
+    remainderValue += position.currentValue;
+  });
+
+  const nonEmptyGroups: GroupAllocationSlice[] = groupedSlices
+    .filter(group => group.currentValue > 0)
+    .map(group => ({
+      ...group,
+      percentage: (group.currentValue / totalCurrentValue) * 100
+    }));
+
+  if (remainderValue > 0) {
+    nonEmptyGroups.push({
+      name: config?.allocationUngroupedLabel || 'Other assets',
+      currentValue: remainderValue,
+      percentage: (remainderValue / totalCurrentValue) * 100,
+      matchedAssets: [],
+      isRemainder: true
+    });
+  }
+
+  return nonEmptyGroups;
 }
 
