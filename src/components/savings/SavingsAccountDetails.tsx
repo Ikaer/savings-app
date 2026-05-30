@@ -6,6 +6,7 @@ import AccountHeaderActions from './account-details/AccountHeaderActions';
 import PerformanceCard from './account-details/PerformanceCard';
 import PortfolioValueCard from './account-details/PortfolioValueCard';
 import GainLossCard from './account-details/GainLossCard';
+import ProjectedGainLossCard from './account-details/ProjectedGainLossCard';
 import AnnualOverviewCard from './account-details/AnnualOverviewCard';
 import GroupedAllocationCard from './account-details/GroupedAllocationCard';
 import PositionsTable from './account-details/PositionsTable';
@@ -444,6 +445,11 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
         <GainLossCard
           loading={historyLoading}
           data={historyChartData}
+        />
+        <ProjectedGainLossCard
+          loading={historyLoading}
+          metrics={historyMetrics}
+          formatCurrency={formatCurrency}
         />
         <AnnualOverviewCard
           rows={annualOverviewRows}

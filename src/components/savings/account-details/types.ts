@@ -41,6 +41,14 @@ export interface HistoryMetricPoint {
   currentYearXirr: number;
 }
 
+export interface GainLossForecastPoint {
+  date: string;
+  historicalGainLoss?: number;
+  projectedGainLoss?: number;
+  projectedLowerBound?: number;
+  projectedUpperBound?: number;
+}
+
 export interface AssetChartPoint {
   date: string;
   currentPrice: number;
