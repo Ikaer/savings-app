@@ -186,8 +186,10 @@ export function calculateAccountPositions(accountId: string, currentPrices: Reco
     }
 
     // Final calculations
-    return Object.values(positionsMap).map(pos => {
-        pos.currentPrice = currentPrices[pos.ticker] || pos.currentPrice;
+    return Object.values(positionsMap)
+    .filter(pos => Object.prototype.hasOwnProperty.call(currentPrices, pos.ticker))
+    .map(pos => {
+        pos.currentPrice = currentPrices[pos.ticker];
         pos.currentValue = pos.quantity * pos.currentPrice;
         pos.unrealizedGainLoss = pos.currentValue - pos.totalInvested;
         pos.unrealizedGainLossPercentage = pos.totalInvested > 0
@@ -195,6 +197,10 @@ export function calculateAccountPositions(accountId: string, currentPrices: Reco
             : 0;
         return pos;
     });
+}
+
+function findMissingTickerPrices(tickers: string[], currentPrices: Record<string, number>): string[] {
+    return tickers.filter(ticker => !Object.prototype.hasOwnProperty.call(currentPrices, ticker));
 }
 
 // ── Balance Records (CompteCourant, PEL, LivretA, AssuranceVie) ────────────
@@ -645,6 +651,11 @@ export async function getNetWorthWithCurrentPrices(): Promise<NetWorthSummary> {
         ? await fetchCurrentPrices(allTickers)
         : {};
 
+    const missingTickers = findMissingTickerPrices(allTickers, currentPrices);
+    if (missingTickers.length > 0) {
+        throw new Error(`Missing market prices for ${missingTickers.length} ticker(s): ${missingTickers.join(', ')}`);
+    }
+
     return getNetWorth(currentPrices);
 }
 
@@ -730,6 +741,10 @@ export async function storeHistoricalAssetsValues(): Promise<{
 
     const { fetchCurrentPrices } = await import('./finance');
     const currentPrices = await fetchCurrentPrices(allTickers);
+    const missingTickers = findMissingTickerPrices(allTickers, currentPrices);
+    if (missingTickers.length > 0) {
+        throw new Error(`Aborting historical asset storage: missing market prices for ${missingTickers.length} ticker(s): ${missingTickers.join(', ')}`);
+    }
     
     interface AggregatedAsset {
         isin: string;
@@ -817,6 +832,10 @@ export async function storeHistoricalAccountsValues(): Promise<{
     
     const { fetchCurrentPrices } = await import('./finance');
     const currentPrices = await fetchCurrentPrices(allTickers);
+    const missingTickers = findMissingTickerPrices(allTickers, currentPrices);
+    if (missingTickers.length > 0) {
+        throw new Error(`Aborting historical account storage: missing market prices for ${missingTickers.length} ticker(s): ${missingTickers.join(', ')}`);
+    }
 
     ensureDirectoryExists(HISTORICAL_ACCOUNTS_DIR);
     const timestamp = new Date().toISOString();

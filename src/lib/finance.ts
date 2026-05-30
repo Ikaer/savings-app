@@ -69,10 +69,14 @@ export async function fetchCurrentPrices(tickers: string[]): Promise<Record<stri
     // Fetch in parallel
     await Promise.all(tickers.map(async (ticker) => {
         try {
-            result[ticker] = await priceProvider.getCurrentPrice(ticker);
+            const price = await priceProvider.getCurrentPrice(ticker);
+            if (Number.isFinite(price)) {
+                result[ticker] = price;
+            } else {
+                console.warn(`Ignoring non-finite price for ${ticker}:`, price);
+            }
         } catch (error) {
             console.error(`Failed to fetch price for ${ticker}:`, error);
-            result[ticker] = 0;
         }
     }));
 
