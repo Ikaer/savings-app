@@ -12,8 +12,11 @@ interface CashCardProps {
 }
 
 export default function CashCard({ cash, investedValue, formatCurrency, formatPercent }: CashCardProps) {
-  const accountTotal = investedValue + cash.balance;
-  const dragPct = accountTotal > 0 ? (cash.balance / accountTotal) * 100 : 0;
+  // A negative derived balance is impossible in reality — it only means deposits weren't fully
+  // recorded. Floor the headline figures at 0 (the honest component breakdown is shown below).
+  const balance = Math.max(0, cash.balance);
+  const accountTotal = investedValue + balance;
+  const dragPct = accountTotal > 0 ? (balance / accountTotal) * 100 : 0;
 
   return (
     <Card>
@@ -21,7 +24,7 @@ export default function CashCard({ cash, investedValue, formatCurrency, formatPe
       <div className={sharedStyles.statsGrid} style={{ marginTop: '1rem' }}>
         <div className={sharedStyles.statItem}>
           <span className={sharedStyles.statLabel}>Cash Balance</span>
-          <span className={sharedStyles.statValue} style={{ fontSize: '2rem' }}>{formatCurrency(cash.balance)}</span>
+          <span className={sharedStyles.statValue} style={{ fontSize: '2rem' }}>{formatCurrency(balance)}</span>
         </div>
         <div className={sharedStyles.statItem}>
           <span className={sharedStyles.statLabel}>Cash Drag (% of account)</span>

@@ -491,7 +491,10 @@ async function valuatePEA(account: SavingsAccount, currentPrices: Record<string,
     const stockValue = summary?.currentValue ?? 0;
     const stockInvested = summary?.totalInvested ?? 0;
     const stockGainLoss = summary?.totalGainLoss ?? 0;
-    const cash = summary?.cash?.balance ?? 0;
+    // Floor at 0: a negative derived cash balance is physically impossible (you can't spend money
+    // you never had) and only signals under-recorded deposits. Folding a negative balance in would
+    // wrongly subtract the cost basis from net worth, collapsing currentValue toward the gain.
+    const cash = Math.max(0, summary?.cash?.balance ?? 0);
 
     return {
         accountId: account.id,
