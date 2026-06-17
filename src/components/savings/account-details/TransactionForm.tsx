@@ -12,6 +12,25 @@ interface TransactionFormProps {
     onClose: () => void;
 }
 
+// Buy/Sell drive positions (quantity × price). Dividend/Fee attach to an asset but carry a flat
+// cash amount. Deposit/Withdrawal are pure cash movements with no asset.
+const TRADE_TYPES: TransactionType[] = ['Buy', 'Sell'];
+const AMOUNT_TYPES: TransactionType[] = ['Dividend', 'Fee', 'Deposit', 'Withdrawal'];
+const CASH_ONLY_TYPES: TransactionType[] = ['Deposit', 'Withdrawal'];
+
+const EMPTY_FORM = {
+    date: new Date().toISOString().split('T')[0],
+    type: 'Buy' as TransactionType,
+    assetName: '',
+    isin: '',
+    ticker: '',
+    quantity: '',
+    unitPrice: '',
+    fees: '0',
+    ttf: '0',
+    amount: ''
+};
+
 export default function TransactionForm({
     open = true,
     mode = 'add',
@@ -21,6 +40,7 @@ export default function TransactionForm({
     onClose
 }: TransactionFormProps) {
     const [selectedPositionIsin, setSelectedPositionIsin] = useState('');
+    const [formData, setFormData] = useState({ ...EMPTY_FORM });
 
     const handlePrefill = () => {
         const position = positions.find(p => p.isin === selectedPositionIsin);
@@ -33,31 +53,9 @@ export default function TransactionForm({
         }));
     };
 
-    const [formData, setFormData] = useState({
-        date: new Date().toISOString().split('T')[0],
-        type: 'Buy' as TransactionType,
-        assetName: '',
-        isin: '',
-        ticker: '',
-        quantity: '',
-        unitPrice: '',
-        fees: '0',
-        ttf: '0'
-    });
-
     useEffect(() => {
         if (!initialTransaction) {
-            setFormData({
-                date: new Date().toISOString().split('T')[0],
-                type: 'Buy' as TransactionType,
-                assetName: '',
-                isin: '',
-                ticker: '',
-                quantity: '',
-                unitPrice: '',
-                fees: '0',
-                ttf: '0'
-            });
+            setFormData({ ...EMPTY_FORM });
             return;
         }
 
@@ -70,7 +68,8 @@ export default function TransactionForm({
             quantity: initialTransaction.quantity.toString(),
             unitPrice: initialTransaction.unitPrice.toString(),
             fees: initialTransaction.fees.toString(),
-            ttf: initialTransaction.ttf.toString()
+            ttf: initialTransaction.ttf.toString(),
+            amount: initialTransaction.totalAmount.toString()
         });
     }, [initialTransaction]);
 
@@ -79,16 +78,21 @@ export default function TransactionForm({
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const isTrade = TRADE_TYPES.includes(formData.type);
+    const isAmount = AMOUNT_TYPES.includes(formData.type);
+    const isCashOnly = CASH_ONLY_TYPES.includes(formData.type);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const quantity = parseFloat(formData.quantity);
-        const unitPrice = parseFloat(formData.unitPrice);
+        const quantity = parseFloat(formData.quantity || '0');
+        const unitPrice = parseFloat(formData.unitPrice || '0');
         const fees = parseFloat(formData.fees || '0');
         const ttf = parseFloat(formData.ttf || '0');
+        const amount = parseFloat(formData.amount || '0');
 
-        // Calculate total amount based on type
-        let totalAmount = 0;
+        // Buy/Sell derive their total from quantity × price (± costs); everything else is a flat amount.
+        let totalAmount = amount;
         if (formData.type === 'Buy') {
             totalAmount = (quantity * unitPrice) + fees + ttf;
         } else if (formData.type === 'Sell') {
@@ -100,12 +104,12 @@ export default function TransactionForm({
             date: formData.date,
             type: formData.type,
             assetName: formData.assetName,
-            isin: formData.isin,
-            ticker: formData.ticker,
-            quantity,
-            unitPrice,
-            fees,
-            ttf,
+            isin: isCashOnly ? '' : formData.isin,
+            ticker: isCashOnly ? '' : formData.ticker,
+            quantity: isTrade ? quantity : 0,
+            unitPrice: isTrade ? unitPrice : 0,
+            fees: isTrade ? fees : 0,
+            ttf: isTrade ? ttf : 0,
             totalAmount
         };
 
@@ -120,7 +124,7 @@ export default function TransactionForm({
             size="lg"
         >
             <form onSubmit={handleSubmit}>
-                {positions.length > 0 && mode === 'add' && (
+                {positions.length > 0 && mode === 'add' && !isCashOnly && (
                     <div className={sharedStyles.prefillRow}>
                         <select
                             className={sharedStyles.select}
@@ -167,93 +171,119 @@ export default function TransactionForm({
                             <option value="Sell">Sell</option>
                             <option value="Dividend">Dividend</option>
                             <option value="Fee">Fee</option>
+                            <option value="Deposit">Deposit (cash in)</option>
+                            <option value="Withdrawal">Withdrawal (cash out)</option>
                         </select>
                     </div>
 
                     <div className={sharedStyles.formGroupFull}>
-                        <label className={sharedStyles.label}>Asset Name</label>
+                        <label className={sharedStyles.label}>{isCashOnly ? 'Label (optional)' : 'Asset Name'}</label>
                         <input
                             type="text"
                             name="assetName"
                             className={sharedStyles.input}
-                            placeholder="e.g. iShares MSCI World Swap PEA"
+                            placeholder={isCashOnly ? 'e.g. Monthly transfer' : 'e.g. iShares MSCI World Swap PEA'}
                             value={formData.assetName}
                             onChange={handleChange}
-                            required
+                            required={!isCashOnly}
                         />
                     </div>
 
-                    <div className={sharedStyles.formGroup}>
-                        <label className={sharedStyles.label}>Ticker</label>
-                        <input
-                            type="text"
-                            name="ticker"
-                            className={sharedStyles.input}
-                            placeholder="e.g. WPEA.PA"
-                            value={formData.ticker}
-                            onChange={handleChange}
-                            required
-                        />
-                    </div>
-                    <div className={sharedStyles.formGroup}>
-                        <label className={sharedStyles.label}>ISIN</label>
-                        <input
-                            type="text"
-                            name="isin"
-                            className={sharedStyles.input}
-                            placeholder="e.g. IE0002XZSHO1"
-                            value={formData.isin}
-                            onChange={handleChange}
-                        />
-                    </div>
+                    {!isCashOnly && (
+                        <>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>Ticker</label>
+                                <input
+                                    type="text"
+                                    name="ticker"
+                                    className={sharedStyles.input}
+                                    placeholder="e.g. WPEA.PA"
+                                    value={formData.ticker}
+                                    onChange={handleChange}
+                                    required={isTrade || formData.type === 'Dividend'}
+                                />
+                            </div>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>ISIN</label>
+                                <input
+                                    type="text"
+                                    name="isin"
+                                    className={sharedStyles.input}
+                                    placeholder="e.g. IE0002XZSHO1"
+                                    value={formData.isin}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </>
+                    )}
 
-                    <div className={sharedStyles.formGroup}>
-                        <label className={sharedStyles.label}>Quantity</label>
-                        <input
-                            type="number"
-                            step="any"
-                            name="quantity"
-                            className={sharedStyles.input}
-                            value={formData.quantity}
-                            onChange={handleChange}
-                            required
-                        />
-                    </div>
-                    <div className={sharedStyles.formGroup}>
-                        <label className={sharedStyles.label}>Unit Price (EUR)</label>
-                        <input
-                            type="number"
-                            step="any"
-                            name="unitPrice"
-                            className={sharedStyles.input}
-                            value={formData.unitPrice}
-                            onChange={handleChange}
-                            required
-                        />
-                    </div>
+                    {isTrade && (
+                        <>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>Quantity</label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    name="quantity"
+                                    className={sharedStyles.input}
+                                    value={formData.quantity}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>Unit Price (EUR)</label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    name="unitPrice"
+                                    className={sharedStyles.input}
+                                    value={formData.unitPrice}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
 
-                    <div className={sharedStyles.formGroup}>
-                        <label className={sharedStyles.label}>Fees (EUR)</label>
-                        <input
-                            type="number"
-                            step="any"
-                            name="fees"
-                            className={sharedStyles.input}
-                            value={formData.fees}
-                            onChange={handleChange}
-                        />
-                    </div>
-                    <div className={sharedStyles.formGroup}>
-                        <label className={sharedStyles.label}>TTF (EUR)</label>
-                        <input
-                            type="number"
-                            step="any"
-                            name="ttf"
-                            className={sharedStyles.input}
-                            value={formData.ttf}
-                            onChange={handleChange}
-                        />
-                    </div>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>Fees (EUR)</label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    name="fees"
+                                    className={sharedStyles.input}
+                                    value={formData.fees}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>TTF (EUR)</label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    name="ttf"
+                                    className={sharedStyles.input}
+                                    value={formData.ttf}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {isAmount && (
+                        <div className={sharedStyles.formGroup}>
+                            <label className={sharedStyles.label}>Amount (EUR)</label>
+                            <input
+                                type="number"
+                                step="any"
+                                name="amount"
+                                className={sharedStyles.input}
+                                placeholder="e.g. 4.32"
+                                value={formData.amount}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className={sharedStyles.formActions}>

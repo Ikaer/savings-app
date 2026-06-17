@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // For PEA accounts, return the full positions-based summary
         if (account.type === 'PEA') {
             const transactions = getTransactions(accountId);
-            const tickers = Array.from(new Set(transactions.map(t => t.ticker)));
+            const tickers = Array.from(new Set(transactions.map(t => t.ticker).filter(Boolean)));
             const currentPrices = await fetchCurrentPrices(tickers);
             const summary = getAccountSummary(accountId, currentPrices);
             const positions = calculateAccountPositions(accountId, currentPrices);

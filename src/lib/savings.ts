@@ -5,6 +5,9 @@ import {
     Transaction,
     AssetPosition,
     AccountSummary,
+    CashSummary,
+    DividendSummary,
+    DividendAssetSummary,
     AssetPriceInfo,
     TransactionType,
     AnnualAccountValue,
@@ -152,6 +155,10 @@ export function calculateAccountPositions(accountId: string, currentPrices: Reco
     const positionsMap: Record<string, AssetPosition> = {};
 
     for (const t of transactions) {
+        // Only Buy/Sell affect positions. Dividend/Fee/Deposit/Withdrawal are cash movements
+        // (dividends are income, not a cost-basis reduction) and are handled separately.
+        if (t.type !== 'Buy' && t.type !== 'Sell') continue;
+
         if (!positionsMap[t.ticker]) {
             positionsMap[t.ticker] = {
                 ticker: t.ticker,
@@ -182,7 +189,6 @@ export function calculateAccountPositions(accountId: string, currentPrices: Reco
             pos.totalInvested -= pos.totalInvested * saleRatio;
             pos.quantity -= t.quantity;
         }
-        // Dividends and other fees would affect totalInvested or current value differently
     }
 
     // Final calculations
@@ -201,6 +207,94 @@ export function calculateAccountPositions(accountId: string, currentPrices: Reco
 
 function findMissingTickerPrices(tickers: string[], currentPrices: Record<string, number>): string[] {
     return tickers.filter(ticker => !Object.prototype.hasOwnProperty.call(currentPrices, ticker));
+}
+
+/**
+ * Derive the uninvested cash balance of an account from its full transaction ledger.
+ * Cash = deposits − withdrawals + dividends + (sell proceeds − buy costs − explicit fees).
+ * Buy/Sell `totalAmount` already bakes in fees/ttf, so fees are not double-counted.
+ */
+export function calculateCashBalance(accountId: string): CashSummary {
+    const transactions = getTransactions(accountId);
+    let fromDeposits = 0;
+    let fromDividends = 0;
+    let fromTrades = 0;
+
+    for (const t of transactions) {
+        switch (t.type) {
+            case 'Deposit': fromDeposits += t.totalAmount; break;
+            case 'Withdrawal': fromDeposits -= t.totalAmount; break;
+            case 'Dividend': fromDividends += t.totalAmount; break;
+            case 'Buy': fromTrades -= t.totalAmount; break;
+            case 'Sell': fromTrades += t.totalAmount; break;
+            case 'Fee': fromTrades -= t.totalAmount; break;
+        }
+    }
+
+    return {
+        balance: fromDeposits + fromDividends + fromTrades,
+        fromDeposits,
+        fromDividends,
+        fromTrades,
+    };
+}
+
+/**
+ * Aggregate dividend income for an account: total, per-year, and per-asset (with yield-on-cost).
+ * Yield-on-cost uses the live cost basis from calculateAccountPositions.
+ */
+export function calculateDividendSummary(accountId: string, currentPrices: Record<string, number>): DividendSummary {
+    const transactions = getTransactions(accountId);
+    const dividends = transactions.filter(t => t.type === 'Dividend');
+
+    const positions = calculateAccountPositions(accountId, currentPrices);
+    const basisByTicker = positions.reduce<Record<string, number>>((acc, p) => {
+        acc[p.ticker] = p.totalInvested;
+        return acc;
+    }, {});
+
+    const byYearMap = new Map<number, number>();
+    const byAssetMap = new Map<string, DividendAssetSummary>();
+    let total = 0;
+
+    for (const t of dividends) {
+        total += t.totalAmount;
+
+        const year = new Date(`${t.date}T00:00:00`).getFullYear();
+        byYearMap.set(year, (byYearMap.get(year) ?? 0) + t.totalAmount);
+
+        const key = t.ticker || t.isin || t.assetName;
+        const existing = byAssetMap.get(key);
+        if (existing) {
+            existing.total += t.totalAmount;
+        } else {
+            byAssetMap.set(key, {
+                ticker: t.ticker,
+                isin: t.isin,
+                name: t.assetName,
+                total: t.totalAmount,
+                costBasis: 0,
+                yieldOnCost: 0,
+            });
+        }
+    }
+
+    const byAsset = Array.from(byAssetMap.values())
+        .map(entry => {
+            const costBasis = basisByTicker[entry.ticker] ?? 0;
+            return {
+                ...entry,
+                costBasis,
+                yieldOnCost: costBasis > 0 ? entry.total / costBasis : 0,
+            };
+        })
+        .sort((a, b) => b.total - a.total);
+
+    const byYear = Array.from(byYearMap.entries())
+        .map(([year, amount]) => ({ year, amount }))
+        .sort((a, b) => a.year - b.year);
+
+    return { total, byYear, byAsset };
 }
 
 // ── Balance Records (CompteCourant, PEL, LivretA, AssuranceVie) ────────────
@@ -271,10 +365,14 @@ import xirr from 'xirr';
 export function calculateXIRR(transactions: Transaction[], currentValue: number): number {
     if (transactions.length === 0) return 0;
 
-    const cashflows = transactions.map(t => ({
-        amount: t.type === 'Buy' ? -t.totalAmount : t.totalAmount, // Negative for buy, positive for sell
-        when: new Date(t.date)
-    }));
+    // XIRR is intentionally stock-only: only Buy/Sell are cashflows and the terminal value is the
+    // stock value. Dividend/Fee/Deposit/Withdrawal are excluded so they never leak into the rate.
+    const cashflows = transactions
+        .filter(t => t.type === 'Buy' || t.type === 'Sell')
+        .map(t => ({
+            amount: t.type === 'Buy' ? -t.totalAmount : t.totalAmount, // Negative for buy, positive for sell
+            when: new Date(t.date)
+        }));
 
     // Add the terminal value (current value of the portfolio) as a positive cashflow today
     cashflows.push({
@@ -317,6 +415,7 @@ export function calculateCurrentYearXIRR(accountId: string, currentValue: number
     const startValue = previousYearValue ?? 0;
 
     const cashflows = transactions
+        .filter(t => t.type === 'Buy' || t.type === 'Sell')
         .map(t => ({
             amount: t.type === 'Buy' ? -t.totalAmount : t.totalAmount,
             when: new Date(`${t.date}T00:00:00`)
@@ -349,13 +448,21 @@ export function getAccountSummary(accountId: string, currentPrices: Record<strin
     const transactions = getTransactions(accountId);
     const xirr = calculateXIRR(transactions, currentValueSum);
 
-    return {
+    const summary: AccountSummary = {
         accountId,
         totalInvested,
         currentValue: currentValueSum,
         totalGainLoss,
         xirr
     };
+
+    // PEA carries a cash balance and dividend income alongside the stock-only figures above.
+    if (account.type === 'PEA') {
+        summary.cash = calculateCashBalance(accountId);
+        summary.dividends = calculateDividendSummary(accountId, currentPrices);
+    }
+
+    return summary;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -377,20 +484,24 @@ function yearsBetween(a: string, b: string): number {
  */
 async function valuatePEA(account: SavingsAccount, currentPrices: Record<string, number>): Promise<AccountValuation> {
     const summary = getAccountSummary(account.id, currentPrices);
-    const transactions = getTransactions(account.id);
-    const lastTransaction = transactions.length > 0
-        ? transactions.sort((a, b) => b.date.localeCompare(a.date))[0].date
-        : new Date().toISOString().split('T')[0];
+
+    // Net worth includes the PEA's uninvested cash. Cash is treated as a neutral, zero-gain
+    // component: it is added to both currentValue and totalContributed so gain/loss stays equal
+    // to stock performance (the detail-page Performance card and XIRR remain stock-only).
+    const stockValue = summary?.currentValue ?? 0;
+    const stockInvested = summary?.totalInvested ?? 0;
+    const stockGainLoss = summary?.totalGainLoss ?? 0;
+    const cash = summary?.cash?.balance ?? 0;
 
     return {
         accountId: account.id,
         accountName: account.name,
         accountType: account.type,
-        currentValue: summary?.currentValue ?? 0,
-        totalContributed: summary?.totalInvested ?? 0,
-        totalGainLoss: summary?.totalGainLoss ?? 0,
-        gainLossPercentage: summary && summary.totalInvested > 0
-            ? (summary.totalGainLoss / summary.totalInvested) * 100
+        currentValue: stockValue + cash,
+        totalContributed: stockInvested + cash,
+        totalGainLoss: stockGainLoss,
+        gainLossPercentage: stockInvested > 0
+            ? (stockGainLoss / stockInvested) * 100
             : 0,
         lastUpdated: new Date().toISOString().split('T')[0],
         isEstimated: false,
@@ -644,7 +755,9 @@ export async function getNetWorth(currentPrices?: Record<string, number>): Promi
 export async function getNetWorthWithCurrentPrices(): Promise<NetWorthSummary> {
     const accounts = getAllSavingsAccounts();
     const allTransactions = accounts.flatMap(account => getTransactions(account.id));
-    const allTickers = Array.from(new Set(allTransactions.map(t => t.ticker)));
+    // Only Buy/Sell carry a tradeable ticker that needs a live price. Cash-movement entries
+    // (Deposit/Withdrawal) have an empty ticker and would otherwise trip the missing-price guard.
+    const allTickers = Array.from(new Set(allTransactions.map(t => t.ticker).filter(Boolean)));
 
     const { fetchCurrentPrices } = await import('./finance');
     const currentPrices = allTickers.length > 0
@@ -736,7 +849,7 @@ export async function storeHistoricalAssetsValues(): Promise<{
     }));
 
     const allTickers = Array.from(
-        new Set(transactionsByAccount.flatMap(entry => entry.transactions.map(t => t.ticker)))
+        new Set(transactionsByAccount.flatMap(entry => entry.transactions.map(t => t.ticker).filter(Boolean)))
     );
 
     const { fetchCurrentPrices } = await import('./finance');
@@ -828,8 +941,8 @@ export async function storeHistoricalAccountsValues(): Promise<{
 }> {
     const accounts = getAllSavingsAccounts();
     const allTransactions = accounts.flatMap(account => getTransactions(account.id));
-    const allTickers = Array.from(new Set(allTransactions.map(t => t.ticker)));
-    
+    const allTickers = Array.from(new Set(allTransactions.map(t => t.ticker).filter(Boolean)));
+
     const { fetchCurrentPrices } = await import('./finance');
     const currentPrices = await fetchCurrentPrices(allTickers);
     const missingTickers = findMissingTickerPrices(allTickers, currentPrices);

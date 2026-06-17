@@ -67,7 +67,10 @@ export type AccountConfig =
 
 // ── Transactions (PEA-specific) ────────────────────────────────────────────────
 
-export type TransactionType = 'Buy' | 'Sell' | 'Dividend' | 'Fee';
+export type TransactionType = 'Buy' | 'Sell' | 'Dividend' | 'Fee' | 'Deposit' | 'Withdrawal';
+
+/** Transaction types that move cash without involving an asset position. */
+export const CASH_ONLY_TRANSACTION_TYPES: TransactionType[] = ['Deposit', 'Withdrawal'];
 
 export interface Transaction {
     id: string;
@@ -135,6 +138,33 @@ export interface AccountSummary {
     currentValue: number;
     totalGainLoss: number;
     xirr: number;
+    /** PEA only — uninvested cash sitting in the plan (dividends + un-spent deposits + trade proceeds). */
+    cash?: CashSummary;
+    /** PEA only — dividend income breakdown. */
+    dividends?: DividendSummary;
+}
+
+/** Cash balance of a PEA, derived from the full transaction ledger. */
+export interface CashSummary {
+    balance: number;
+    fromDeposits: number;   // net deposits − withdrawals
+    fromDividends: number;  // dividend income credited as cash
+    fromTrades: number;     // sell proceeds − buy costs (fees/ttf included in those amounts)
+}
+
+export interface DividendAssetSummary {
+    ticker: string;
+    isin: string;
+    name: string;
+    total: number;       // total dividends received for this asset
+    costBasis: number;   // current invested cost basis for this asset
+    yieldOnCost: number; // total / costBasis, as a fraction (0 if no basis)
+}
+
+export interface DividendSummary {
+    total: number;
+    byYear: { year: number; amount: number }[];
+    byAsset: DividendAssetSummary[];
 }
 
 /** Unified valuation returned by the net-worth API */

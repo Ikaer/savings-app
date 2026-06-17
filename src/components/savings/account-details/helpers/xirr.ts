@@ -45,7 +45,7 @@ export function buildAnnualXirr({
     if (startValue === undefined) continue;
 
     const cashflows = parsedTransactions
-      .filter(t => t.dateObj >= startDate && t.dateObj <= endDate)
+      .filter(t => (t.type === 'Buy' || t.type === 'Sell') && t.dateObj >= startDate && t.dateObj <= endDate)
       .map(t => ({
         amount: t.type === 'Buy' ? -t.totalAmount : t.totalAmount,
         when: t.dateObj

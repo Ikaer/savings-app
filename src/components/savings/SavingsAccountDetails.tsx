@@ -9,6 +9,8 @@ import GainLossCard from './account-details/GainLossCard';
 import ProjectedGainLossCard from './account-details/ProjectedGainLossCard';
 import AnnualOverviewCard from './account-details/AnnualOverviewCard';
 import GroupedAllocationCard from './account-details/GroupedAllocationCard';
+import CashCard from './account-details/CashCard';
+import DividendsCard from './account-details/DividendsCard';
 import PositionsTable from './account-details/PositionsTable';
 import TransactionsTable from './account-details/TransactionsTable';
 import AllChartsModal from './account-details/AllChartsModal';
@@ -430,6 +432,21 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
           data={historyChartData}
           formatCurrency={formatCurrency}
         />
+        {account.type === 'PEA' && summary.cash && (
+          <CashCard
+            cash={summary.cash}
+            investedValue={summary.currentValue}
+            formatCurrency={formatCurrency}
+            formatPercent={formatPercent}
+          />
+        )}
+        {account.type === 'PEA' && summary.dividends && (
+          <DividendsCard
+            dividends={summary.dividends}
+            formatCurrency={formatCurrency}
+            formatPercent={formatPercent}
+          />
+        )}
         {account.type === 'PEA' && (
           <GroupedAllocationCard
             data={groupedAllocationData}
