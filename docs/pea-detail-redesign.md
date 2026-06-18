@@ -1,6 +1,6 @@
 # PEA detail view — redesign proposal
 
-Status: proposed (not yet implemented)
+Status: implemented
 Scope: the PEA account detail view rendered by [`SavingsAccountDetails.tsx`](../src/components/savings/SavingsAccountDetails.tsx)
 
 ## Problem

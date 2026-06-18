@@ -3,17 +3,13 @@ import sharedStyles from '@/components/savings/SavingsShared.module.css';
 import { PEAAllocationGroup, PEAConfig, SavingsAccount } from '@/models/savings';
 import TransactionForm from './account-details/TransactionForm';
 import AccountHeaderActions from './account-details/AccountHeaderActions';
-import PerformanceCard from './account-details/PerformanceCard';
-import PortfolioValueCard from './account-details/PortfolioValueCard';
-import GainLossCard from './account-details/GainLossCard';
-import ProjectedGainLossCard from './account-details/ProjectedGainLossCard';
-import AnnualOverviewCard from './account-details/AnnualOverviewCard';
+import KpiStrip from './account-details/KpiStrip';
+import ChartPanel from './account-details/ChartPanel';
+import AnnualOverviewTable from './account-details/AnnualOverviewTable';
 import GroupedAllocationCard from './account-details/GroupedAllocationCard';
-import CashCard from './account-details/CashCard';
-import DividendsCard from './account-details/DividendsCard';
+import DividendsByAssetCard from './account-details/DividendsByAssetCard';
 import PositionsTable from './account-details/PositionsTable';
 import TransactionsTable from './account-details/TransactionsTable';
-import AllChartsModal from './account-details/AllChartsModal';
 import AssetChartsModal from './account-details/AssetChartsModal';
 import AnnualEditorModal from './account-details/AnnualEditorModal';
 import { buildClipboardText } from './account-details/helpers/clipboard';
@@ -150,8 +146,7 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
   const isins = useMemo(() => data?.positions?.map(pos => pos.isin).filter(Boolean) || [], [data?.positions]);
   const { assetHistory } = useAssetHistory(isins);
 
-  const [activeTab, setActiveTab] = useState<'positions' | 'transactions'>('positions');
-  const [showCharts, setShowCharts] = useState(false);
+  const [activeTab, setActiveTab] = useState<'positions' | 'transactions' | 'annual'>('positions');
   const [showAssetCharts, setShowAssetCharts] = useState(false);
   const [activeAssetIsin, setActiveAssetIsin] = useState<string | null>(null);
   const [positionsSort, setPositionsSort] = useState<{ key: PositionSortKey; direction: SortDirection }>(
@@ -395,14 +390,6 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
         onSave={saveAnnualValue}
       />
 
-      <AllChartsModal
-        open={showCharts}
-        loading={historyLoading}
-        metrics={historyMetrics}
-        onClose={() => setShowCharts(false)}
-        formatCurrency={formatCurrency}
-      />
-
       <AssetChartsModal
         open={showAssetCharts}
         activeIsin={activeAssetIsin}
@@ -418,36 +405,31 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
         onAddTransaction={openAddTransaction}
         onRefreshPrices={refreshData}
         onCopyContext={handleCopyContext}
-        onShowCharts={() => setShowCharts(true)}
       />
 
-      <div className={sharedStyles.accountGrid}>
-        <PerformanceCard
+      {/* Tier 1 — KPI strip (headline scalars) */}
+      <div style={{ marginBottom: '2rem' }}>
+        <KpiStrip
           summary={summary}
+          isPea={account.type === 'PEA'}
           formatCurrency={formatCurrency}
           formatPercent={formatPercent}
         />
-        <PortfolioValueCard
+      </div>
+
+      {/* Tier 2 — single merged chart panel (Value / Gain-loss % / Projection) */}
+      <div style={{ marginBottom: '2rem' }}>
+        <ChartPanel
           loading={historyLoading}
-          data={historyChartData}
+          historyData={historyChartData}
+          metrics={historyMetrics}
           formatCurrency={formatCurrency}
         />
-        {account.type === 'PEA' && summary.cash && (
-          <CashCard
-            cash={summary.cash}
-            investedValue={summary.currentValue}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-          />
-        )}
-        {account.type === 'PEA' && summary.dividends && (
-          <DividendsCard
-            dividends={summary.dividends}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-          />
-        )}
-        {account.type === 'PEA' && (
+      </div>
+
+      {/* Tier 3 — composition row (what the account is made of), PEA only */}
+      {account.type === 'PEA' && (
+        <div className={sharedStyles.accountGrid}>
           <GroupedAllocationCard
             data={groupedAllocationData}
             hasConfiguredGroups={hasConfiguredGroups}
@@ -458,35 +440,29 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
               setShowGroupingConfigModal(true);
             }}
           />
-        )}
-        <GainLossCard
-          loading={historyLoading}
-          data={historyChartData}
-        />
-        <ProjectedGainLossCard
-          loading={historyLoading}
-          metrics={historyMetrics}
-          formatCurrency={formatCurrency}
-        />
-        <AnnualOverviewCard
-          rows={annualOverviewRows}
-          formatCurrency={formatCurrency}
-          formatPercent={formatPercent}
-          onEdit={openAnnualEditor}
-        />
-      </div>
+          {summary.dividends && (
+            <DividendsByAssetCard
+              dividends={summary.dividends}
+              formatCurrency={formatCurrency}
+              formatPercent={formatPercent}
+            />
+          )}
+        </div>
+      )}
 
+      {/* Tier 4 — detail tables */}
       <Tabs
         items={[
           { id: 'positions', label: 'Positions' },
-          { id: 'transactions', label: 'Transactions' }
+          { id: 'transactions', label: 'Transactions' },
+          { id: 'annual', label: 'Annual overview' }
         ]}
         active={activeTab}
         onChange={setActiveTab}
         ariaLabel="Account details tabs"
       />
 
-      {activeTab === 'positions' ? (
+      {activeTab === 'positions' && (
         <PositionsTable
           positions={positionsSorted}
           positionsSort={positionsSort}
@@ -499,13 +475,22 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
             setShowAssetCharts(true);
           }}
         />
-      ) : (
+      )}
+      {activeTab === 'transactions' && (
         <TransactionsTable
           transactions={transactionsSorted}
           transactionsSort={transactionsSort}
           onToggleSort={(key) => setTransactionsSort(toggleSort(transactionsSort, key))}
           formatCurrency={formatCurrency}
           onEditTransaction={openEditTransaction}
+        />
+      )}
+      {activeTab === 'annual' && (
+        <AnnualOverviewTable
+          rows={annualOverviewRows}
+          formatCurrency={formatCurrency}
+          formatPercent={formatPercent}
+          onEdit={openAnnualEditor}
         />
       )}
     </div>

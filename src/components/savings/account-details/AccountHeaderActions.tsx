@@ -8,7 +8,6 @@ interface AccountHeaderActionsProps {
   onAddTransaction: () => void;
   onRefreshPrices: () => void;
   onCopyContext: () => void;
-  onShowCharts: () => void;
 }
 
 export default function AccountHeaderActions({
@@ -16,8 +15,7 @@ export default function AccountHeaderActions({
   onBack,
   onAddTransaction,
   onRefreshPrices,
-  onCopyContext,
-  onShowCharts
+  onCopyContext
 }: AccountHeaderActionsProps) {
   return (
     <div className={styles.header}>
@@ -29,7 +27,6 @@ export default function AccountHeaderActions({
         </Button>
         <Button variant="secondary" onClick={onRefreshPrices}>Refresh Prices</Button>
         <Button variant="secondary" onClick={onCopyContext}>Copy Context</Button>
-        <Button variant="secondary" onClick={onShowCharts}>All Charts</Button>
       </div>
       <h1 className={styles.title}>{title}</h1>
     </div>
