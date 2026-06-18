@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import sharedStyles from '@/components/savings/SavingsShared.module.css';
-import { PEAAllocationGroup, PEAConfig, SavingsAccount } from '@/models/savings';
+import { PEAAllocationGroup, PEAConfig, SavingsAccount, Transaction } from '@/models/savings';
 import TransactionForm from './account-details/TransactionForm';
 import AccountHeaderActions from './account-details/AccountHeaderActions';
 import KpiStrip from './account-details/KpiStrip';
@@ -12,6 +12,7 @@ import PositionsTable from './account-details/PositionsTable';
 import TransactionsTable from './account-details/TransactionsTable';
 import AssetChartsModal from './account-details/AssetChartsModal';
 import AnnualEditorModal from './account-details/AnnualEditorModal';
+import OpeningBalanceModal from './account-details/OpeningBalanceModal';
 import { buildClipboardText } from './account-details/helpers/clipboard';
 import { buildAnnualXirr } from './account-details/helpers/xirr';
 import { buildAnnualOverviewRows } from './account-details/helpers/annualOverview';
@@ -147,6 +148,7 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
   const { assetHistory } = useAssetHistory(isins);
 
   const [activeTab, setActiveTab] = useState<'positions' | 'transactions' | 'annual'>('positions');
+  const [showOpeningBalanceModal, setShowOpeningBalanceModal] = useState(false);
   const [showAssetCharts, setShowAssetCharts] = useState(false);
   const [activeAssetIsin, setActiveAssetIsin] = useState<string | null>(null);
   const [positionsSort, setPositionsSort] = useState<{ key: PositionSortKey; direction: SortDirection }>(
@@ -171,8 +173,45 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
     openAddTransaction,
     openEditTransaction,
     closeTransactionEditor,
-    saveTransaction
+    saveTransaction,
+    deleteTransaction
   } = useTransactionEditor({ accountId: account.id, onRefresh: refreshData });
+
+  // Opening deposit is dated on or before the first transaction so cash is present from day one.
+  const openingBalanceDate = useMemo(() => {
+    const dates = transactions.map(t => t.date).filter(Boolean).sort();
+    return dates[0] ?? new Date().toISOString().split('T')[0];
+  }, [transactions]);
+
+  const handleInsertOpeningBalance = async (amount: number) => {
+    const transaction: Transaction = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: openingBalanceDate,
+      type: 'Deposit',
+      assetName: 'Opening balance',
+      isin: '',
+      ticker: '',
+      quantity: 0,
+      unitPrice: 0,
+      fees: 0,
+      ttf: 0,
+      totalAmount: amount
+    };
+
+    const res = await fetch(`/api/savings/transactions/${account.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(transaction)
+    });
+
+    if (res.ok) {
+      setShowOpeningBalanceModal(false);
+      refreshData();
+    } else {
+      const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+      alert(`Failed to insert opening balance: ${err.error}`);
+    }
+  };
 
   const copyTextToClipboard = async (text: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -380,6 +419,15 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
         onClose={closeTransactionEditor}
       />
 
+      <OpeningBalanceModal
+        open={showOpeningBalanceModal}
+        cash={summary.cash}
+        openingDate={openingBalanceDate}
+        formatCurrency={formatCurrency}
+        onClose={() => setShowOpeningBalanceModal(false)}
+        onConfirm={handleInsertOpeningBalance}
+      />
+
       <AnnualEditorModal
         open={editingYear !== null}
         year={editingYear}
@@ -415,6 +463,13 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
           formatCurrency={formatCurrency}
           formatPercent={formatPercent}
         />
+        {account.type === 'PEA' && (
+          <div style={{ marginTop: '0.75rem', textAlign: 'right' }}>
+            <Button variant="secondary" size="sm" onClick={() => setShowOpeningBalanceModal(true)}>
+              Set opening cash balance
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tier 2 — single merged chart panel (Value / Gain-loss % / Projection) */}
@@ -483,6 +538,7 @@ export default function SavingsAccountDetails({ account, onBack }: SavingsAccoun
           onToggleSort={(key) => setTransactionsSort(toggleSort(transactionsSort, key))}
           formatCurrency={formatCurrency}
           onEditTransaction={openEditTransaction}
+          onDeleteTransaction={deleteTransaction}
         />
       )}
       {activeTab === 'annual' && (

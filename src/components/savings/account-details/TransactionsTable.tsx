@@ -10,7 +10,8 @@ export default function TransactionsTable({
   transactionsSort,
   onToggleSort,
   formatCurrency,
-  onEditTransaction
+  onEditTransaction,
+  onDeleteTransaction
 }: TransactionsTableProps) {
   const sortOptions: Array<{ key: TransactionsTableProps['transactionsSort']['key']; label: string }> = [
     { key: 'date', label: 'Date' },
@@ -135,13 +136,22 @@ export default function TransactionsTable({
                 <td>{formatCurrency(t.ttf)}</td>
                 <td>{formatCurrency(t.totalAmount)}</td>
                 <td>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => onEditTransaction(t)}
-                  >
-                    Edit
-                  </Button>
+                  <div className={styles.rowActions}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onEditTransaction(t)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="primary-negative"
+                      size="sm"
+                      onClick={() => onDeleteTransaction(t)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -193,13 +203,20 @@ export default function TransactionsTable({
               </div>
             </div>
 
-            <div>
+            <div className={styles.rowActions}>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => onEditTransaction(t)}
               >
                 Edit Transaction
+              </Button>
+              <Button
+                variant="primary-negative"
+                size="sm"
+                onClick={() => onDeleteTransaction(t)}
+              >
+                Delete
               </Button>
             </div>
           </article>

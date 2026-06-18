@@ -19,11 +19,17 @@ export default function KpiStrip({ summary, isPea, formatCurrency, formatPercent
   // fully recorded. Floor the headline at 0; the component breakdown lives in the tooltip.
   const cash = isPea ? summary.cash : undefined;
   const cashBalance = cash ? Math.max(0, cash.balance) : 0;
+  // A negative raw balance means recorded deposits don't cover the stocks bought — usually a
+  // missing opening deposit. Surface the shortfall so the floored 0 isn't mistaken for a bug.
+  const cashShortfall = cash && cash.balance < 0 ? -cash.balance : 0;
   const cashTooltip = cash
     ? [
         `Net transfers in: ${formatCurrency(cash.fromDeposits)}`,
         `Dividends received: ${formatCurrency(cash.fromDividends)}`,
-        `Invested in stocks (net): ${formatCurrency(cash.fromTrades)}`
+        `Invested in stocks (net): ${formatCurrency(cash.fromTrades)}`,
+        ...(cashShortfall > 0
+          ? [`⚠ Unfunded by ${formatCurrency(cashShortfall)} — record an opening deposit to fix.`]
+          : [])
       ].join('\n')
     : undefined;
 
@@ -51,7 +57,9 @@ export default function KpiStrip({ summary, isPea, formatCurrency, formatPercent
         {cash && (
           <div className={styles.item}>
             <span className={styles.label}>Cash</span>
-            <span className={styles.value} title={cashTooltip}>{formatCurrency(cashBalance)}</span>
+            <span className={`${styles.value}${cashShortfall > 0 ? ` ${styles.negative}` : ''}`} title={cashTooltip}>
+              {formatCurrency(cashBalance)}{cashShortfall > 0 ? ' ⚠' : ''}
+            </span>
           </div>
         )}
         {dividends && (

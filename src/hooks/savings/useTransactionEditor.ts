@@ -51,6 +51,29 @@ export function useTransactionEditor({ accountId, onRefresh }: UseTransactionEdi
     }
   };
 
+  const deleteTransaction = async (transaction: Transaction) => {
+    const label = transaction.assetName || transaction.type;
+    if (!window.confirm(`Delete this ${transaction.type} transaction (${label})? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/savings/transactions/${accountId}?id=${encodeURIComponent(transaction.id)}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        onRefresh();
+      } else {
+        const err = await res.json();
+        alert(`Failed to delete transaction: ${err.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      alert('An error occurred while deleting the transaction.');
+    }
+  };
+
   return {
     isOpen,
     mode,
@@ -58,6 +81,7 @@ export function useTransactionEditor({ accountId, onRefresh }: UseTransactionEdi
     openAddTransaction,
     openEditTransaction,
     closeTransactionEditor,
-    saveTransaction
+    saveTransaction,
+    deleteTransaction
   };
 }

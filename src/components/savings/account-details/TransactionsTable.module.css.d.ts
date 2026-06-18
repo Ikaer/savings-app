@@ -12,6 +12,7 @@ declare const styles: {
   readonly "mobileSortButton": string;
   readonly "mobileSortButtonActive": string;
   readonly "mobileType": string;
+  readonly "rowActions": string;
 };
 export = styles;
 

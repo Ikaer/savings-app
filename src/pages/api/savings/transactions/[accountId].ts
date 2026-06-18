@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getTransactions, addTransaction, updateTransaction } from '@/lib/savings';
+import { getTransactions, addTransaction, updateTransaction, deleteTransaction } from '@/lib/savings';
 import { Transaction, CASH_ONLY_TRANSACTION_TYPES } from '@/models/savings';
 
 /** Cash-only transactions (Deposit/Withdrawal) move cash without an asset, so they carry no ticker. */
@@ -53,6 +53,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(200).json(transaction);
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'PUT']);
+    if (req.method === 'DELETE') {
+        const id = (req.query.id ?? req.body?.id) as string | undefined;
+        if (!id) {
+            return res.status(400).json({ error: 'Missing transaction id' });
+        }
+
+        const success = deleteTransaction(accountId, id);
+        if (!success) {
+            return res.status(404).json({ error: 'Transaction not found' });
+        }
+
+        return res.status(200).json({ id });
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
 }

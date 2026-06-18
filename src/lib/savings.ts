@@ -148,6 +148,16 @@ export function updateTransaction(accountId: string, transaction: Transaction): 
 }
 
 /**
+ * Delete a transaction from an account by id. Returns false if no matching id exists.
+ */
+export function deleteTransaction(accountId: string, transactionId: string): boolean {
+    const transactions = getTransactions(accountId);
+    const filtered = transactions.filter(t => t.id !== transactionId);
+    if (filtered.length === transactions.length) return false;
+    return saveTransactions(accountId, filtered);
+}
+
+/**
  * Calculate positions and aggregation for an account
  */
 export function calculateAccountPositions(accountId: string, currentPrices: Record<string, number>): AssetPosition[] {
