@@ -1,6 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getTransactions, addTransaction, updateTransaction } from '@/lib/savings';
-import { Transaction } from '@/models/savings';
+import { Transaction, CASH_ONLY_TRANSACTION_TYPES } from '@/models/savings';
+
+/** Cash-only transactions (Deposit/Withdrawal) move cash without an asset, so they carry no ticker. */
+function isValidTransaction(transaction: Transaction): boolean {
+    if (!transaction.id) {
+        return false;
+    }
+    if (CASH_ONLY_TRANSACTION_TYPES.includes(transaction.type)) {
+        return true;
+    }
+    return !!transaction.ticker;
+}
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const { accountId } = req.query;
@@ -16,7 +27,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (req.method === 'POST') {
         const transaction: Transaction = req.body;
-        if (!transaction.id || !transaction.ticker) {
+        if (!isValidTransaction(transaction)) {
             return res.status(400).json({ error: 'Missing transaction data' });
         }
 
@@ -30,7 +41,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (req.method === 'PUT') {
         const transaction: Transaction = req.body;
-        if (!transaction.id || !transaction.ticker) {
+        if (!isValidTransaction(transaction)) {
             return res.status(400).json({ error: 'Missing transaction data' });
         }
 
