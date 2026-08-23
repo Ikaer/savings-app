@@ -68,10 +68,10 @@ Standard Next.js Pages API routes, thin wrappers over `lib/savings.ts`. REST-ish
 - `actions/perform-automated-tasks` is the **cron endpoint**: POST-only, gated by `Authorization: Bearer ${CRON_SECRET}`. Runs the three historical-snapshot tasks in parallel and appends an execution record (capped at 100). `actions/get-tasks-history` reads it back.
 
 ### MCP server (`mcp/`)
-A **read-only** MCP server exposing the tracker to LLM clients (`npm run mcp`, registered in `.mcp.json`). It imports `lib/savings.ts` directly — no running Next server, just `DATA_PATH`. Tools are registered per domain under `mcp/tools/`; see `mcp/README.md` for the catalog.
+A **read-only** MCP server exposing the tracker to LLM clients. Tools are registered per domain under `mcp/tools/` and assembled by `mcp/create-server.ts`, which two transports share: stdio (`npm run mcp`, registered in `.mcp.json`) and Streamable HTTP (`POST /api/savings/mcp`, stateless, used by remote clients against the NAS). See `mcp/README.md` for the catalog.
 
 Two constraints that are easy to break:
-- `mcp/bootstrap.ts` **must stay the first import** in `mcp/server.ts`. It redirects `console.log` to stderr (`lib/data.ts` logs every file read, which would corrupt the stdio JSON-RPC stream) and loads `.env.local` before `lib/savings.ts` captures `DATA_PATH` into module-level consts.
+- `mcp/bootstrap.ts` **must stay the first import** in `mcp/server.ts`, and must never be imported from the HTTP route (Next loads env itself, and the console redirect would swallow app logs). It redirects `console.log` to stderr (`lib/data.ts` logs every file read, which would corrupt the stdio JSON-RPC stream) and loads `.env.local` before `lib/savings.ts` captures `DATA_PATH` into module-level consts.
 - Keep it read-only. Writes are deliberately excluded — positions and cost basis are recomputed from the transaction ledger on every read, so a bad insert corrupts every downstream valuation.
 
 ### Frontend (`src/pages/`, `src/components/`, `src/hooks/`)
@@ -88,5 +88,6 @@ Two constraints that are easy to break:
 - `DATA_PATH` — JSON storage root (default `/app/data`).
 - `LOGS_PATH` — app log dir (default `/app/logs`).
 - `CRON_SECRET` — bearer token required by the automated-tasks endpoint.
+- `MCP_SECRET` — optional; when set, `POST /api/savings/mcp` requires `Authorization: Bearer <secret>`.
 
 The defaults are Docker container paths. For local dev these are overridden in `.env.local` to Windows dirs under `E:\Workspace\local\SavingsTracker\`. (`.env.local` also sets a `CONFIG_PATH`, but the code currently derives the config dir as `DATA_PATH/config` and does not read `CONFIG_PATH`.)

@@ -4,13 +4,18 @@ Read-only MCP server over the tracker's data. It imports `src/lib/savings.ts`
 directly, so **no Next.js server needs to be running** — it only needs
 `DATA_PATH` pointing at the same JSON store (read from `.env.local` at startup).
 
-```bash
-npm run mcp
-```
+Two transports share the same tools, both built by
+[`create-server.ts`](create-server.ts):
 
-Registered for Claude Code via [`.mcp.json`](../.mcp.json) at the repo root.
-For another client, use `npx tsx mcp/server.ts` with the repo as the working
-directory (or set `SAVINGS_PROJECT_ROOT` to it).
+- **stdio** — `npm run mcp` ([`server.ts`](server.ts)). Registered for Claude
+  Code via [`.mcp.json`](../.mcp.json) at the repo root. Needs a local checkout.
+- **HTTP** — `POST /api/savings/mcp`, served by the Next app
+  ([`src/pages/api/savings/mcp.ts`](../src/pages/api/savings/mcp.ts)). Stateless
+  Streamable HTTP: a fresh server per request, no session state. This is what a
+  remote client uses, e.g. `http://syno:12351/api/savings/mcp` on the NAS.
+
+Set `MCP_SECRET` to require `Authorization: Bearer <secret>` on the HTTP
+endpoint. Left unset it is open, which is only reasonable on a trusted LAN.
 
 ## Tools
 
