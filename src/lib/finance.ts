@@ -14,7 +14,10 @@ export interface PriceProvider {
  * Yahoo Finance implementation of PriceProvider
  * Handle class instantiation required by v3.x
  */
-const yf = new (yahooFinance as any)();
+const yf = new (yahooFinance as any)({ suppressNotices: ['yahooSurvey'] });
+
+/** A week back, so the window still contains a session over weekends and holidays. */
+const CHART_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function normalizeTicker(ticker: string): string {
     const trimmed = ticker.trim();
@@ -26,9 +29,23 @@ function normalizeTicker(ticker: string): string {
 }
 
 class YahooFinanceProvider implements PriceProvider {
+    /**
+     * Deliberately `chart` and not `quote`: `quote` requires a Yahoo crumb, and the
+     * cookie handshake that obtains one dies behind Yahoo's EU consent gate
+     * ("Unexpected redirect to .../quote/AAPL?guccounter=1" — observed in production
+     * on 2026-08-23, affecting every ticker at once). The chart endpoint carries the
+     * same `regularMarketPrice` and needs no crumb.
+     */
+    private async fetchLatestPrice(ticker: string): Promise<number> {
+        const result = await yf.chart(normalizeTicker(ticker), {
+            period1: new Date(Date.now() - CHART_LOOKBACK_MS),
+            interval: '1d',
+        });
+        return result?.meta?.regularMarketPrice || 0;
+    }
+
     async getCurrentPrice(ticker: string): Promise<number> {
-        const result = await yf.quote(normalizeTicker(ticker));
-        return result.regularMarketPrice || 0;
+        return this.fetchLatestPrice(ticker);
     }
 
     async getHistory(ticker: string, from: Date, to: Date): Promise<PriceHistory[]> {
@@ -44,10 +61,9 @@ class YahooFinanceProvider implements PriceProvider {
     }
 
     async getQuote(ticker: string): Promise<AssetPriceInfo> {
-        const quote = await yf.quote(normalizeTicker(ticker));
         return {
             ticker,
-            currentPrice: quote.regularMarketPrice || 0,
+            currentPrice: await this.fetchLatestPrice(ticker),
             lastUpdated: new Date().toISOString()
         };
     }
