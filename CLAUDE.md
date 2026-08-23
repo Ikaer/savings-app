@@ -67,6 +67,13 @@ Standard Next.js Pages API routes, thin wrappers over `lib/savings.ts`. REST-ish
 - `net-worth` triggers live price fetching via `getNetWorthWithCurrentPrices()`, which **throws if any ticker price is missing** (fail-closed so totals are never silently wrong).
 - `actions/perform-automated-tasks` is the **cron endpoint**: POST-only, gated by `Authorization: Bearer ${CRON_SECRET}`. Runs the three historical-snapshot tasks in parallel and appends an execution record (capped at 100). `actions/get-tasks-history` reads it back.
 
+### MCP server (`mcp/`)
+A **read-only** MCP server exposing the tracker to LLM clients (`npm run mcp`, registered in `.mcp.json`). It imports `lib/savings.ts` directly — no running Next server, just `DATA_PATH`. Tools are registered per domain under `mcp/tools/`; see `mcp/README.md` for the catalog.
+
+Two constraints that are easy to break:
+- `mcp/bootstrap.ts` **must stay the first import** in `mcp/server.ts`. It redirects `console.log` to stderr (`lib/data.ts` logs every file read, which would corrupt the stdio JSON-RPC stream) and loads `.env.local` before `lib/savings.ts` captures `DATA_PATH` into module-level consts.
+- Keep it read-only. Writes are deliberately excluded — positions and cost basis are recomputed from the transaction ledger on every read, so a bad insert corrupts every downstream valuation.
+
 ### Frontend (`src/pages/`, `src/components/`, `src/hooks/`)
 - Routing: `/` redirects to `/savings`; `/savings` (`savings.tsx`) is the dashboard with the net-worth banner + per-account cards; `/savings/default` resolves the default account and redirects to `/savings/[accountId]`; `/savings/[accountId]` is the detail view.
 - `components/shared/` — generic UI (Button, Card, Modal, Tabs, sortable table), each re-exported via barrel `index.ts`.

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "savings-tracker": {
+      "command": "npx",
+      "args": ["tsx", "mcp/server.ts"],
+      "env": {}
+    }
+  }
+}

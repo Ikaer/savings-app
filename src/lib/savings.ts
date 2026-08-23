@@ -793,7 +793,7 @@ const HISTORICAL_ACCOUNTS_DIR = path.join(HISTORICAL_DIR, 'accounts');
 const HISTORICAL_GENERAL_DIR = path.join(HISTORICAL_DIR, 'general');
 const HISTORICAL_WEALTH_FILE = path.join(HISTORICAL_GENERAL_DIR, 'wealth.json');
 
-interface HistoricalAssetRecord {
+export interface HistoricalAssetRecord {
     timestamp: string;
     isin: string;
     ticker: string;
@@ -807,7 +807,7 @@ interface HistoricalAssetRecord {
     unrealizedGainLossPercentage: number;
 }
 
-interface HistoricalAccountRecord {
+export interface HistoricalAccountRecord {
     timestamp: string;
     accountId: string;
     accountName: string;
@@ -818,7 +818,7 @@ interface HistoricalAccountRecord {
     currentYearXirr: number;
 }
 
-interface HistoricalWealthRecord {
+export interface HistoricalWealthRecord {
     timestamp: string;
     total: number;
     accountsCount: number;
@@ -1018,4 +1018,27 @@ export async function storeHistoricalWealthValues(): Promise<{
     writeJsonFile(HISTORICAL_WEALTH_FILE, existing);
 
     return { timestamp };
+}
+
+// Historical data read functions
+
+function sortByTimestamp<T extends { timestamp: string }>(records: T[]): T[] {
+    return records.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+/** Net-worth time series, oldest first */
+export function getHistoricalWealthRecords(): HistoricalWealthRecord[] {
+    return sortByTimestamp(readJsonFile<HistoricalWealthRecord[]>(HISTORICAL_WEALTH_FILE, []));
+}
+
+/** Per-account value/XIRR time series, oldest first */
+export function getHistoricalAccountRecords(accountName: string, accountId: string): HistoricalAccountRecord[] {
+    const filePath = getAccountHistoricalFilePath(accountName, accountId);
+    return sortByTimestamp(readJsonFile<HistoricalAccountRecord[]>(filePath, []));
+}
+
+/** Per-asset position/price time series, oldest first. `assetId` is an ISIN or a ticker. */
+export function getHistoricalAssetRecords(assetId: string): HistoricalAssetRecord[] {
+    const filePath = getAssetFilePath(assetId, assetId);
+    return sortByTimestamp(readJsonFile<HistoricalAssetRecord[]>(filePath, []));
 }

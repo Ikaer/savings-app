@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "mcp": "npx tsx mcp/server.ts",
     "css:types": "npx tcm -p \"src/**/*.module.css\" . --camelCase",
     "css:types:watch": "npx tcm -w -p \"src/**/*.module.css\" . --camelCase",
     "data:pull": "node scripts/pull-data.mjs"
@@ -22,13 +23,16 @@
     "yahoo-finance2": "^3.13.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "concurrently": "^8.2.2",
     "eslint": "^8.0.0",
     "eslint-config-next": "14.0.0",
+    "tsx": "^4.23.12",
     "typed-css-modules": "^0.9.1",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "zod": "^4.4.3"
   }
 }
