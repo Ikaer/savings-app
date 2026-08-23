@@ -215,7 +215,7 @@ export function calculateAccountPositions(accountId: string, currentPrices: Reco
     });
 }
 
-function findMissingTickerPrices(tickers: string[], currentPrices: Record<string, number>): string[] {
+export function findMissingTickerPrices(tickers: string[], currentPrices: Record<string, number>): string[] {
     return tickers.filter(ticker => !Object.prototype.hasOwnProperty.call(currentPrices, ticker));
 }
 

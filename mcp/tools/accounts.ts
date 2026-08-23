@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
     calculateAccountPositions,
+    findMissingTickerPrices,
     calculateCurrentYearXIRR,
     getAccountSummary,
     getAccountValuation,
@@ -72,6 +73,19 @@ export function registerAccountTools(server: McpServer): void {
                     new Set(getTransactions(account.id).map(t => t.ticker).filter(Boolean))
                 );
                 currentPrices = await fetchCurrentPrices(tickers);
+
+                // Fail closed, like get_net_worth. Positions, invested amount and XIRR
+                // are all derived from prices, so a partial fetch does not degrade
+                // gracefully — it reports the account as worth its cash balance alone.
+                const missing = findMissingTickerPrices(tickers, currentPrices);
+                if (missing.length > 0) {
+                    throw new Error(
+                        `Market prices unavailable for ${missing.length} of ${tickers.length} holding(s): ` +
+                        `${missing.join(', ')}. Refusing to report a valuation that would understate the ` +
+                        'account. The stored data is unaffected — get_transactions still returns the full ' +
+                        'ledger, and get_prices will show which tickers the price provider is rejecting.'
+                    );
+                }
             }
 
             const valuation = await getAccountValuation(account, currentPrices);

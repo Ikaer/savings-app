@@ -44,8 +44,12 @@ Also exposed as a resource: `savings://accounts`.
   tasks. Writes were deliberately left out: positions and cost basis are
   recomputed from the transaction ledger on every read, so a bad insert would
   silently corrupt every downstream valuation.
-- `get_net_worth` fails rather than returning a partial total when a market
-  price is missing, matching the `/api/savings/net-worth` behaviour.
+- `get_net_worth` and `get_account_summary` both fail rather than returning a
+  valuation when any market price is missing. A partial price fetch does not
+  degrade gracefully: positions, invested amount and XIRR are all derived from
+  prices, so the account would be reported as worth its cash balance alone.
+  `get_prices` is the exception — it reports unresolved tickers under `missing`
+  so the price provider itself can be diagnosed.
 - `get_account_history` is restricted to PEA accounts on purpose.
   `storeHistoricalAccountsValues()` builds its records from the transaction
   ledger, so `historical/accounts/*.json` holds nothing but zeros for every
