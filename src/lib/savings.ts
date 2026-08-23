@@ -796,22 +796,68 @@ export async function getNetWorth(currentPrices?: Record<string, number>): Promi
 
 export async function getNetWorthWithCurrentPrices(): Promise<NetWorthSummary> {
     const accounts = getAllSavingsAccounts();
-    const allTransactions = accounts.flatMap(account => getTransactions(account.id));
-    // Only Buy/Sell carry a tradeable ticker that needs a live price. Cash-movement entries
-    // (Deposit/Withdrawal) have an empty ticker and would otherwise trip the missing-price guard.
-    const allTickers = Array.from(new Set(allTransactions.map(t => t.ticker).filter(Boolean)));
+    const allTickers = Array.from(new Set(accounts.flatMap(account => getPricedTickers(account.id))));
+    const currentPrices = await fetchPricesOrThrow(allTickers);
+    return getNetWorth(currentPrices);
+}
+
+/**
+ * Raised instead of returning a valuation derived from an incomplete price set.
+ * Carries the offending tickers so callers can report them without re-deriving the list.
+ */
+export class MissingPricesError extends Error {
+    readonly missing: string[];
+    readonly requested: string[];
+
+    constructor(missing: string[], requested: string[]) {
+        super(
+            `Market prices unavailable for ${missing.length} of ${requested.length} holding(s): ` +
+            `${missing.join(', ')}. Refusing to report a valuation that would understate the account.`
+        );
+        this.name = 'MissingPricesError';
+        this.missing = missing;
+        this.requested = requested;
+    }
+}
+
+/**
+ * Tickers an account needs a live price for. Deliberately Buy/Sell only, matching exactly what
+ * `calculateAccountPositions` prices: Deposit/Withdrawal carry an empty ticker, and a Dividend or
+ * Fee on a since-liquidated holding would otherwise demand a price nothing consumes — either way
+ * tripping the missing-price guard over a ticker no valuation depends on.
+ */
+export function getPricedTickers(accountId: string): string[] {
+    const transactions = getTransactions(accountId);
+    return Array.from(
+        new Set(
+            transactions
+                .filter(t => t.type === 'Buy' || t.type === 'Sell')
+                .map(t => t.ticker)
+                .filter(Boolean)
+        )
+    );
+}
+
+/**
+ * Fetch live prices, failing closed if any ticker is unpriced.
+ *
+ * Every price-dependent figure — positions, invested amount, gain/loss, XIRR — is derived from this
+ * map, and `calculateAccountPositions` drops unpriced holdings entirely. A partial fetch therefore
+ * does not degrade gracefully: it reports a PEA as worth its cash balance alone, with
+ * `isEstimated: false`. Callers that need prices must go through here rather than calling
+ * `fetchCurrentPrices` directly, so the guard cannot be forgotten at one entry point.
+ */
+export async function fetchPricesOrThrow(tickers: string[]): Promise<Record<string, number>> {
+    if (tickers.length === 0) return {};
 
     const { fetchCurrentPrices } = await import('./finance');
-    const currentPrices = allTickers.length > 0
-        ? await fetchCurrentPrices(allTickers)
-        : {};
+    const currentPrices = await fetchCurrentPrices(tickers);
 
-    const missingTickers = findMissingTickerPrices(allTickers, currentPrices);
-    if (missingTickers.length > 0) {
-        throw new Error(`Missing market prices for ${missingTickers.length} ticker(s): ${missingTickers.join(', ')}`);
+    const missing = findMissingTickerPrices(tickers, currentPrices);
+    if (missing.length > 0) {
+        throw new MissingPricesError(missing, tickers);
     }
-
-    return getNetWorth(currentPrices);
+    return currentPrices;
 }
 
 // Historical data storage functions

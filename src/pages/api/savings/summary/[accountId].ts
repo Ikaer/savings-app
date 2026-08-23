@@ -1,12 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import {
     getAccountSummary,
-    getTransactions,
     calculateAccountPositions,
     getSavingsAccount,
-    getAccountValuation
+    getAccountValuation,
+    fetchPricesOrThrow,
+    getPricedTickers,
+    MissingPricesError
 } from '@/lib/savings';
-import { fetchCurrentPrices } from '@/lib/finance';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { accountId } = req.query;
@@ -21,11 +22,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(404).json({ error: 'Account not found' });
         }
 
-        // For PEA accounts, return the full positions-based summary
+        // For PEA accounts, return the full positions-based summary.
+        // Fails closed on a partial price fetch: every figure below is derived from the price map,
+        // and unpriced holdings are dropped, so a degraded response reports the account as worth
+        // its cash balance alone rather than admitting it could not be valued.
         if (account.type === 'PEA') {
-            const transactions = getTransactions(accountId);
-            const tickers = Array.from(new Set(transactions.map(t => t.ticker).filter(Boolean)));
-            const currentPrices = await fetchCurrentPrices(tickers);
+            const currentPrices = await fetchPricesOrThrow(getPricedTickers(accountId));
             const summary = getAccountSummary(accountId, currentPrices);
             const positions = calculateAccountPositions(accountId, currentPrices);
 
@@ -50,6 +52,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             valuation,
         });
     } catch (error) {
+        if (error instanceof MissingPricesError) {
+            console.error('Error fetching account summary:', error.message);
+            return res.status(503).json({ error: error.message, missingTickers: error.missing });
+        }
         console.error('Error fetching account summary:', error);
         return res.status(500).json({ error: 'Internal server error' });
     }

@@ -2,15 +2,15 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
     calculateAccountPositions,
-    findMissingTickerPrices,
     calculateCurrentYearXIRR,
+    fetchPricesOrThrow,
     getAccountSummary,
     getAccountValuation,
     getAllSavingsAccounts,
     getAnnualAccountValues,
-    getTransactions,
+    getPricedTickers,
+    MissingPricesError,
 } from '@/lib/savings';
-import { fetchCurrentPrices } from '@/lib/finance';
 import { ACCOUNT_TYPE_LABELS } from '@/models/savings';
 import { accountRef, jsonResult, resolveAccount } from '../helpers';
 
@@ -66,24 +66,16 @@ export function registerAccountTools(server: McpServer): void {
             const sections = new Set<string>(include ?? ['positions', 'cash', 'dividends']);
 
             // Only a PEA is priced from the market; every other type values itself
-            // from its own balance/deposit records.
+            // from its own balance/deposit records. Fails closed, like get_net_worth.
             let currentPrices: Record<string, number> = {};
             if (account.type === 'PEA') {
-                const tickers = Array.from(
-                    new Set(getTransactions(account.id).map(t => t.ticker).filter(Boolean))
-                );
-                currentPrices = await fetchCurrentPrices(tickers);
-
-                // Fail closed, like get_net_worth. Positions, invested amount and XIRR
-                // are all derived from prices, so a partial fetch does not degrade
-                // gracefully — it reports the account as worth its cash balance alone.
-                const missing = findMissingTickerPrices(tickers, currentPrices);
-                if (missing.length > 0) {
+                try {
+                    currentPrices = await fetchPricesOrThrow(getPricedTickers(account.id));
+                } catch (error) {
+                    if (!(error instanceof MissingPricesError)) throw error;
                     throw new Error(
-                        `Market prices unavailable for ${missing.length} of ${tickers.length} holding(s): ` +
-                        `${missing.join(', ')}. Refusing to report a valuation that would understate the ` +
-                        'account. The stored data is unaffected — get_transactions still returns the full ' +
-                        'ledger, and get_prices will show which tickers the price provider is rejecting.'
+                        `${error.message} The stored data is unaffected — get_transactions still returns ` +
+                        'the full ledger, and get_prices will show which tickers the price provider is rejecting.'
                     );
                 }
             }

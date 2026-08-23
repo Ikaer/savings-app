@@ -41,7 +41,15 @@ class YahooFinanceProvider implements PriceProvider {
             period1: new Date(Date.now() - CHART_LOOKBACK_MS),
             interval: '1d',
         });
-        return result?.meta?.regularMarketPrice || 0;
+        const price = result?.meta?.regularMarketPrice;
+
+        // Throw rather than fall back to 0. A zero is a *valid finite price* downstream: it passes
+        // the missing-price guard and values the position at nothing, which is exactly the silently
+        // wrong answer the guard exists to prevent. An absent price must surface as absent.
+        if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
+            throw new Error(`No usable price for ${ticker} (chart returned ${JSON.stringify(price)})`);
+        }
+        return price;
     }
 
     async getCurrentPrice(ticker: string): Promise<number> {
@@ -86,10 +94,12 @@ export async function fetchCurrentPrices(tickers: string[]): Promise<Record<stri
     await Promise.all(tickers.map(async (ticker) => {
         try {
             const price = await priceProvider.getCurrentPrice(ticker);
-            if (Number.isFinite(price)) {
+            // Same reasoning as fetchLatestPrice: only a strictly positive price is a price.
+            // Anything else is omitted so the caller sees the ticker as missing.
+            if (Number.isFinite(price) && price > 0) {
                 result[ticker] = price;
             } else {
-                console.warn(`Ignoring non-finite price for ${ticker}:`, price);
+                console.warn(`Ignoring unusable price for ${ticker}:`, price);
             }
         } catch (error) {
             console.error(`Failed to fetch price for ${ticker}:`, error);

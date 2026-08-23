@@ -14,9 +14,15 @@ npm run build        # prebuild regenerates CSS types, then `next build`
 npm run start        # production server (after build)
 npm run lint         # next lint (eslint-config-next)
 npm run css:types    # one-shot regen of *.module.css.d.ts typings
+
+npm run check:prices      # live probe of the price provider (control ticker + real ledger tickers)
+npm run check:fail-closed # offline: asserts the valuation paths raise on missing/zero prices
 ```
 
-There is **no test runner configured** — do not assume `npm test` exists.
+There is **no test runner configured** — do not assume `npm test` exists. The two `check:*` scripts
+in `scripts/check-prices.ts` are the closest thing: `check:prices` hits the network and distinguishes
+an upstream outage (the control ticker fails too) from a ticker-format bug (only `EPA:*` fails);
+`check:fail-closed` stubs the provider and is safe to run offline.
 
 Docker: `docker-compose up -d` (standalone build; mounts external `DATA_PATH`/`LOGS_PATH` volumes).
 
@@ -64,7 +70,7 @@ Positions are recomputed from the transaction log each time (`calculateAccountPo
 ### API layer (`src/pages/api/`)
 Standard Next.js Pages API routes, thin wrappers over `lib/savings.ts`. REST-ish: `savings/accounts`, `savings/transactions/[accountId]`, `savings/balances/[accountId]`, `savings/deposits/[accountId]`, `savings/annual/[accountId]`, `savings/net-worth`, `savings/historical/...`.
 
-- `net-worth` triggers live price fetching via `getNetWorthWithCurrentPrices()`, which **throws if any ticker price is missing** (fail-closed so totals are never silently wrong).
+- `net-worth` and `summary/[accountId]` fetch live prices through `fetchPricesOrThrow()` in `lib/savings.ts`, which **throws `MissingPricesError` if any ticker price is missing** (fail-closed so totals are never silently wrong; the summary route maps it to a 503). Never call `fetchCurrentPrices` directly from a valuation path — `calculateAccountPositions` drops unpriced holdings, so a partial fetch reports a PEA as worth its cash balance alone with `isEstimated: false`.
 - `actions/perform-automated-tasks` is the **cron endpoint**: POST-only, gated by `Authorization: Bearer ${CRON_SECRET}`. Runs the three historical-snapshot tasks in parallel and appends an execution record (capped at 100). `actions/get-tasks-history` reads it back.
 
 ### MCP server (`mcp/`)

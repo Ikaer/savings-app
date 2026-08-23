@@ -12,6 +12,8 @@
     "mcp": "npx tsx mcp/server.ts",
     "css:types": "npx tcm -p \"src/**/*.module.css\" . --camelCase",
     "css:types:watch": "npx tcm -w -p \"src/**/*.module.css\" . --camelCase",
+    "check:prices": "npx tsx scripts/check-prices.ts",
+    "check:fail-closed": "npx tsx scripts/check-prices.ts --fail-closed",
     "data:pull": "node scripts/pull-data.mjs",
     "data:pull:salon": "node scripts/pull-data.mjs --dest=D:/Workspaces/local/SavingsTracker/data"
   },
