@@ -5,6 +5,7 @@
  * This is an exact mirror: files present at the destination but not at the
  * source are DELETED. Pass --dry-run to see what would change first.
  *
+ * Overridable via CLI: --source=<path>, --dest=<path> (these win over env).
  * Overridable via env: SYNO_DATA_PATH (source), DATA_PATH (destination).
  */
 import fs from 'node:fs/promises';
@@ -16,6 +17,13 @@ const DEFAULT_DESTINATION = 'E:\\Workspace\\local\\SavingsTracker\\data';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dryRun = process.argv.includes('--dry-run');
+
+/** Reads a `--name=value` CLI flag; returns undefined when absent. */
+function readFlag(name) {
+  const prefix = `--${name}=`;
+  const match = process.argv.find((arg) => arg.startsWith(prefix));
+  return match ? match.slice(prefix.length) : undefined;
+}
 
 /** Minimal `.env.local` reader — the project has no dotenv dependency. */
 async function readEnvFile(filePath) {
@@ -86,8 +94,9 @@ async function countFiles(directory) {
 async function main() {
   const fileEnv = await readEnvFile(path.join(projectRoot, '.env.local'));
 
-  const source = process.env.SYNO_DATA_PATH || DEFAULT_SOURCE;
-  const destination = process.env.DATA_PATH || fileEnv.DATA_PATH || DEFAULT_DESTINATION;
+  const source = readFlag('source') || process.env.SYNO_DATA_PATH || DEFAULT_SOURCE;
+  const destination =
+    readFlag('dest') || process.env.DATA_PATH || fileEnv.DATA_PATH || DEFAULT_DESTINATION;
 
   console.log(`Source:      ${source}`);
   console.log(`Destination: ${destination}`);
