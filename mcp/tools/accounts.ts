@@ -48,7 +48,13 @@ export function registerAccountTools(server: McpServer): void {
                 'Valuation of a single account: invested amount, current value, gain/loss and XIRR. ' +
                 'For a PEA it also returns live-priced positions, the uninvested cash breakdown and the ' +
                 'dividend summary. Other account types return the unified valuation only, flagged ' +
-                '`isEstimated` when the value is compounded forward from the last recorded balance.',
+                '`isEstimated` when the value is projected forward from the last recorded balance. ' +
+                'State these caveats when you quote the PEA figures: XIRR covers Buy/Sell only — ' +
+                'dividends, fees and deposits are excluded from the rate, and 0 means the solver did ' +
+                'not converge, not a flat return; cost basis is a weighted average reduced ' +
+                'proportionally on each sale, not per-lot, so realised gains are approximate; and ' +
+                '`valuation.totalContributed` folds in uninvested cash (dividends included, floored ' +
+                'at zero), so it runs above deposits alone and dampens the reported gain %.',
             inputSchema: {
                 account: z.string().describe('Account id, or its name (e.g. "PEA" or "Livret A")'),
                 include: z

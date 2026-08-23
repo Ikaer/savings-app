@@ -76,8 +76,9 @@ export function registerLedgerTools(server: McpServer): void {
             title: 'Get balance snapshots',
             description:
                 'Recorded balance snapshots for a Compte Courant, PEL, Livret A or Assurance-Vie account, ' +
-                'oldest first. These are the manually recorded figures; the current value reported by ' +
-                'get_net_worth is compounded forward from the most recent one.',
+                'oldest first. These are the manually recorded figures - the only observed values for ' +
+                'these accounts; the current value reported by get_net_worth is projected forward from ' +
+                'the most recent one, so compare that date against today before trusting the projection.',
             inputSchema: {
                 account: z.string().describe('Account id, or its name'),
                 from: isoDate.optional().describe('Only snapshots on or after this date'),
@@ -118,7 +119,9 @@ export function registerLedgerTools(server: McpServer): void {
             title: 'Get Intéressement deposits',
             description:
                 'Deposits held in an Intéressement account: amount, investment strategy, lock-end date ' +
-                'and last known value. The account value is the sum of the deposits\' current values.',
+                'and last known value. The account value is the sum of the deposits\' current values. ' +
+                'Those values are entered by hand, not priced live - `value_date` is when each was ' +
+                'last updated, and nothing is projected forward from it.',
             inputSchema: {
                 account: z.string().describe('Account id, or its name'),
             },

@@ -50,6 +50,23 @@ Also exposed as a resource: `savings://accounts`.
   prices, so the account would be reported as worth its cash balance alone.
   `get_prices` is the exception — it reports unresolved tickers under `missing`
   so the price provider itself can be diagnosed.
+- **Owned simplifications.** Several figures are approximations the app has always
+  made; they are stated in `SERVER_INSTRUCTIONS` and in the relevant tool
+  descriptions so an LLM consumer does not report them as exact. Keep the two in
+  sync when the maths changes:
+  - `isEstimated` projections are **linear**, not compounded:
+    `balance * (1 + rate * fractionOfYear)`. `lastUpdated` is the anchoring
+    snapshot's date, so its age is the estimate's staleness.
+  - **Zero doubles as "unknown".** `calculateXIRR` returns `0` when the solver
+    fails, `calculateCurrentYearXIRR` returns `0` with no prior-year anchor, and
+    `costBasis` is `0` for an asset with no live position. None are distinguishable
+    from a genuine zero — fixing that properly means a nullable valuation layer.
+  - PEA `totalContributed` is cost basis **plus uninvested cash**, dividends
+    included and floored at zero, so it exceeds net deposits.
+  - Cost basis is a weighted average reduced proportionally on sale, not per-lot.
+  - XIRR is Buy/Sell only — dividends, fees and deposits never enter the rate.
+  - Assurance-Vie contributions are reconstructed from `opening_date` and
+    `monthly_contribution`; there is no ledger for that type.
 - `get_account_history` is restricted to PEA accounts on purpose.
   `storeHistoricalAccountsValues()` builds its records from the transaction
   ledger, so `historical/accounts/*.json` holds nothing but zeros for every

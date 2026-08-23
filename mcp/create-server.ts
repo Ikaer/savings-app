@@ -14,13 +14,27 @@ import { registerPriceTools } from './tools/prices';
 
 export const SERVER_INFO = { name: 'savings-tracker', version: '1.0.0' };
 
+/**
+ * Loaded once per session, so this is the right place for the caveats that apply across tools —
+ * stating them here keeps them out of every individual tool description.
+ *
+ * These own deliberate simplifications in the tracker rather than describing bugs: the projections
+ * really are linear, and zero really is overloaded. A consumer that does not know both will report
+ * a confidently wrong figure.
+ */
 export const SERVER_INSTRUCTIONS =
     'Read-only access to a personal French savings and investment tracker (PEA, Compte Courant, ' +
     'PEL, Livret A, Assurance-Vie, Intéressement). Resolve an account with list_accounts before ' +
     "calling account-scoped tools; they accept an id or a name. Amounts are in each account's " +
-    'own currency (EUR throughout). Values flagged `isEstimated` are projections compounded ' +
-    'forward from the last recorded balance, not observed figures. This server never writes: ' +
-    'it cannot add transactions, record balances or trigger snapshots.';
+    'own currency (EUR throughout). ' +
+    'Values flagged `isEstimated` are projected forward from the last recorded balance by simple ' +
+    'linear interpolation of the configured annual rate — not compounded, and not observed. ' +
+    '`lastUpdated` is the date of that anchoring balance, so its age is how stale the estimate is; ' +
+    'quote that age whenever the estimate carries the answer. ' +
+    'Read zeros defensively: this tracker has no distinct representation for "unknown", so a 0 ' +
+    'gain, a 0 cost basis or a 0 XIRR can mean the quantity was not computable rather than ' +
+    'genuinely zero. Prefer saying a figure is unavailable over reporting a confident 0. ' +
+    'This server never writes: it cannot add transactions, record balances or trigger snapshots.';
 
 export function createSavingsMcpServer(): McpServer {
     const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });
