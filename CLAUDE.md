@@ -54,7 +54,7 @@ config/automated-tasks-history.json # last 100 cron executions
 - **PEA** — live market prices × positions derived from transactions; real gain/loss.
 - **CompteCourant** — latest balance snapshot, no gain.
 - **PEL / LivretA** — compound the latest balance forward by a fractional-year rate (PEL applies a tax regime based on opening date/age; LivretA is tax-free). Marked `isEstimated`.
-- **AssuranceVie** — latest balance + monthly contributions since; gain only realized at year-end.
+- **AssuranceVie** — latest balance projected at `last_annual_yield` (linear, like PEL/LivretA), plus the monthly premiums paid since. `totalContributed` is reconstructed from `opening_date` + `monthly_contribution` (there is no ledger for this type), so the contributed/gain split is an estimate. Marked `isEstimated`.
 - **Intéressement** — sum of per-deposit current values.
 
 When adding an account type: extend the union + `ACCOUNT_TYPE_LABELS` + a `*Config` interface in `src/models/savings/index.ts`, add a `valuateXxx` and a `switch` case in `savings.ts`, and (if it uses balances) add it to `BALANCE_SUPPORTED_TYPES` in `src/pages/savings.tsx`.

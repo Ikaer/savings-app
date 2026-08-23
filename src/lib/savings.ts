@@ -669,7 +669,30 @@ function valuateLivretA(account: SavingsAccount): AccountValuation {
 }
 
 /**
- * Valuate Assurance-Vie — last balance + monthly contributions since.
+ * Count the monthly contributions falling in a date window, assuming the premium is paid on the
+ * account's opening day-of-month. `inclusiveStart` counts a contribution landing exactly on
+ * `from` (true when `from` is the opening date, false when it is a balance snapshot the
+ * contribution is already baked into).
+ */
+function countMonthlyContributions(from: string, to: string, inclusiveStart: boolean): number {
+    const start = new Date(`${from}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    if (end < start) return 0;
+
+    let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    if (end.getDate() < start.getDate()) months -= 1;
+
+    return Math.max(0, inclusiveStart ? months + 1 : months);
+}
+
+/**
+ * Valuate Assurance-Vie — last balance, projected forward at the configured yield and topped up
+ * with the monthly premiums paid since.
+ *
+ * Contributions are reconstructed from `opening_date` + `monthly_contribution` rather than read
+ * from a ledger (there is none for this type), so the contributed/gain split is an estimate — but
+ * an estimate is what the account is, and treating the whole balance as contributed capital
+ * reported a structurally impossible zero gain that also understated net-worth gain.
  */
 function valuateAssuranceVie(account: SavingsAccount): AccountValuation {
     const config = account.config as AssuranceVieConfig | undefined;
@@ -690,27 +713,33 @@ function valuateAssuranceVie(account: SavingsAccount): AccountValuation {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const monthsSince = daysBetween(latest.date, today) / 30.44; // avg days/month
-    const monthsElapsed = Math.max(0, Math.floor(monthsSince));
+    const fractionOfYear = Math.max(0, daysBetween(latest.date, today) / 365);
 
-    const estimatedValue = latest.balance + (config.monthly_contribution * monthsElapsed);
+    const premiumsToDate = countMonthlyContributions(config.opening_date, today, true);
+    const premiumsAtAnchor = countMonthlyContributions(config.opening_date, latest.date, true);
+    // Premiums credited strictly after the anchor snapshot (the snapshot already contains its own).
+    const contributionsSince = config.monthly_contribution * (premiumsToDate - premiumsAtAnchor);
 
-    // Use all balances to estimate total contributed
-    const allBalances = getBalanceRecords(account.id);
-    const oldest = allBalances.length > 0
-        ? allBalances[allBalances.length - 1]
-        : latest;
+    // Same linear interpolation as PEL/LivretA: the yield is applied to the anchor balance only,
+    // not to premiums paid part-way through the window.
+    const projectedBalance = latest.balance * (1 + config.last_annual_yield * fractionOfYear);
+    const estimatedValue = projectedBalance + contributionsSince;
+
+    const totalContributed = config.monthly_contribution * premiumsToDate;
+    const gainLoss = estimatedValue - totalContributed;
 
     return {
         accountId: account.id,
         accountName: account.name,
         accountType: account.type,
         currentValue: Math.round(estimatedValue * 100) / 100,
-        totalContributed: Math.round(estimatedValue * 100) / 100, // For AV, contributed ≈ current (gains are small intra-year)
-        totalGainLoss: 0, // Real gain only known at year-end
-        gainLossPercentage: 0,
+        totalContributed: Math.round(totalContributed * 100) / 100,
+        totalGainLoss: Math.round(gainLoss * 100) / 100,
+        gainLossPercentage: totalContributed > 0
+            ? Math.round((gainLoss / totalContributed) * 10000) / 100
+            : 0,
         lastUpdated: latest.date,
-        isEstimated: monthsElapsed > 0,
+        isEstimated: fractionOfYear > 0,
     };
 }
 
