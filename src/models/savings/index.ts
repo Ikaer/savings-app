@@ -53,6 +53,7 @@ export interface LivretAConfig {
 export interface AssuranceVieConfig {
     type: 'AssuranceVie';
     opening_date: string;         // ISO date
+    initial_deposit?: number;     // "versement initial", if it differs from the recurring premium
     monthly_contribution: number; // e.g. 200
     last_annual_yield: number;    // e.g. 0.028 for 2.8%
 }

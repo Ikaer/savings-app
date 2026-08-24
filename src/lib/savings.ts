@@ -669,30 +669,37 @@ function valuateLivretA(account: SavingsAccount): AccountValuation {
 }
 
 /**
- * Count the monthly contributions falling in a date window, assuming the premium is paid on the
- * account's opening day-of-month. `inclusiveStart` counts a contribution landing exactly on
- * `from` (true when `from` is the opening date, false when it is a balance snapshot the
- * contribution is already baked into).
+ * Count the recurring premiums credited between the opening date and `to`, excluding the opening
+ * deposit itself (that one is `initial_deposit`).
+ *
+ * Premiums are debited at month end, so the count is simply the number of whole calendar months
+ * that have turned over since the opening month: a premium for month M is counted from the first
+ * day of M+1. Anchoring on the opening day-of-month instead would jump a month mid-month — for a
+ * 19 October opening it reported 34 premiums on 10 August and 35 on 24 August, though no premium
+ * fell in between.
+ *
+ * Crediting drifts across the boundary in practice (the 31 December premium can land on 3 January),
+ * so this stays a +/- one-premium estimate. Note that `isEstimated` does not cover it: that flag
+ * means the value was projected past the last recorded balance, and the contributed/gain split is
+ * a reconstruction on every day, including the day a balance is recorded.
  */
-function countMonthlyContributions(from: string, to: string, inclusiveStart: boolean): number {
-    const start = new Date(`${from}T00:00:00`);
+function countMonthlyContributions(openingDate: string, to: string): number {
+    const start = new Date(`${openingDate}T00:00:00`);
     const end = new Date(`${to}T00:00:00`);
     if (end < start) return 0;
 
-    let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-    if (end.getDate() < start.getDate()) months -= 1;
-
-    return Math.max(0, inclusiveStart ? months + 1 : months);
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    return Math.max(0, months);
 }
 
 /**
  * Valuate Assurance-Vie — last balance, projected forward at the configured yield and topped up
  * with the monthly premiums paid since.
  *
- * Contributions are reconstructed from `opening_date` + `monthly_contribution` rather than read
- * from a ledger (there is none for this type), so the contributed/gain split is an estimate — but
- * an estimate is what the account is, and treating the whole balance as contributed capital
- * reported a structurally impossible zero gain that also understated net-worth gain.
+ * Contributions are reconstructed from `opening_date` + `initial_deposit` + `monthly_contribution`
+ * rather than read from a ledger (there is none for this type), so the contributed/gain split is an
+ * estimate — but an estimate is what the account is, and treating the whole balance as contributed
+ * capital reported a structurally impossible zero gain that also understated net-worth gain.
  */
 function valuateAssuranceVie(account: SavingsAccount): AccountValuation {
     const config = account.config as AssuranceVieConfig | undefined;
@@ -715,8 +722,8 @@ function valuateAssuranceVie(account: SavingsAccount): AccountValuation {
     const today = new Date().toISOString().split('T')[0];
     const fractionOfYear = Math.max(0, daysBetween(latest.date, today) / 365);
 
-    const premiumsToDate = countMonthlyContributions(config.opening_date, today, true);
-    const premiumsAtAnchor = countMonthlyContributions(config.opening_date, latest.date, true);
+    const premiumsToDate = countMonthlyContributions(config.opening_date, today);
+    const premiumsAtAnchor = countMonthlyContributions(config.opening_date, latest.date);
     // Premiums credited strictly after the anchor snapshot (the snapshot already contains its own).
     const contributionsSince = config.monthly_contribution * (premiumsToDate - premiumsAtAnchor);
 
@@ -725,7 +732,10 @@ function valuateAssuranceVie(account: SavingsAccount): AccountValuation {
     const projectedBalance = latest.balance * (1 + config.last_annual_yield * fractionOfYear);
     const estimatedValue = projectedBalance + contributionsSince;
 
-    const totalContributed = config.monthly_contribution * premiumsToDate;
+    // The "versement initial" is often larger than the recurring premium; fall back to the premium
+    // so accounts configured before this field existed keep their previous numbers.
+    const initialDeposit = config.initial_deposit ?? config.monthly_contribution;
+    const totalContributed = initialDeposit + config.monthly_contribution * premiumsToDate;
     const gainLoss = estimatedValue - totalContributed;
 
     return {

@@ -24,6 +24,7 @@ export default function CreateAccountModal({ open, onClose, onCreated }: CreateA
     const [openingDate, setOpeningDate] = useState('');
     const [grossRate, setGrossRate] = useState('');
     const [currentRate, setCurrentRate] = useState('');
+    const [initialDeposit, setInitialDeposit] = useState('');
     const [monthlyContribution, setMonthlyContribution] = useState('');
     const [lastAnnualYield, setLastAnnualYield] = useState('');
 
@@ -35,6 +36,7 @@ export default function CreateAccountModal({ open, onClose, onCreated }: CreateA
         setOpeningDate('');
         setGrossRate('');
         setCurrentRate('');
+        setInitialDeposit('');
         setMonthlyContribution('');
         setLastAnnualYield('');
     };
@@ -62,6 +64,7 @@ export default function CreateAccountModal({ open, onClose, onCreated }: CreateA
                 return {
                     type: 'AssuranceVie',
                     opening_date: openingDate,
+                    initial_deposit: parseFloat(initialDeposit) || parseFloat(monthlyContribution) || 0,
                     monthly_contribution: parseFloat(monthlyContribution) || 0,
                     last_annual_yield: parseFloat(lastAnnualYield) / 100 || 0,
                 };
@@ -230,6 +233,17 @@ export default function CreateAccountModal({ open, onClose, onCreated }: CreateA
                                     value={openingDate}
                                     onChange={e => setOpeningDate(e.target.value)}
                                     required
+                                />
+                            </div>
+                            <div className={sharedStyles.formGroup}>
+                                <label className={sharedStyles.label}>Initial Deposit (EUR)</label>
+                                <input
+                                    className={sharedStyles.input}
+                                    type="number"
+                                    step="1"
+                                    value={initialDeposit}
+                                    onChange={e => setInitialDeposit(e.target.value)}
+                                    placeholder="leave empty if same as monthly"
                                 />
                             </div>
                             <div className={sharedStyles.formGroup}>

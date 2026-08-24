@@ -51,6 +51,9 @@ export default function BalanceAccountDetails({ account, onBack }: BalanceAccoun
         configInfo.push({ label: 'Current Rate', value: `${(config.current_rate * 100).toFixed(2)}%` });
     } else if (config?.type === 'AssuranceVie') {
         configInfo.push({ label: 'Opening Date', value: config.opening_date });
+        if (config.initial_deposit !== undefined) {
+            configInfo.push({ label: 'Initial Deposit', value: formatCurrency(config.initial_deposit) });
+        }
         configInfo.push({ label: 'Monthly Contribution', value: formatCurrency(config.monthly_contribution) });
         configInfo.push({ label: 'Last Annual Yield', value: `${(config.last_annual_yield * 100).toFixed(2)}%` });
     }
